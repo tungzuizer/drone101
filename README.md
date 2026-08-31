@@ -14,17 +14,20 @@ Dự án firmware điều khiển bay (Flight Controller) chuyên dụng cho **Q
 
 ## 📑 MỤC LỤC
 1. [Tính Năng Nổi Bật](#-tính-năng-nổi-bật)
-2. [Cấu Trúc Thư Mục Dự Án](#-cấu-trúc-thư-mục-dự-án)
-3. [Phần Cứng & Sơ Đồ Chân GPIO](#-phần-cứng--sơ-đồ-chân-gpio)
-4. [Bố Trí Động Cơ Quad-X & Chiều Quay](#-bố-trí-động-cơ-quad-x--chiều-quay)
-5. [Hệ Thống Tụ Lọc Kép & Chống Nhiễu](#-hệ-thống-tụ-lọc-kép--chống-nhiễu)
-6. [Cài Đặt Môi Trường & Nạp Firmware](#-cài-đặt-môi-trường--nạp-firmware)
-7. [Quy Trình Kiểm Tra Phần Cứng Trên Bàn Test (Bench Test)](#-quy-trình-kiểm-tra-phần-cứng-trên-bàn-test-bench-test)
-8. [Hướng Dẫn Sử Dụng GCS Web Tuner](#-hướng-dẫn-sử-dụng-gcs-web-tuner)
-9. [Tập Lệnh Điều Khiển Serial CLI](#-tập-lệnh-điều-khiển-serial-cli)
-10. [Cẩm Nang Tune PID Kép (Cascade PID Tuning Guide)](#-cẩm-nang-tune-pid-kép-cascade-pid-tuning-guide)
-11. [Bảng Thông Số PID Khởi Điểm](#-bảng-thông-số-pid-khởi-điểm)
-12. [Tài Liệu Chi Tiết Đi Kèm](#-tài-liệu-chi-tiết-đi-kèm)
+2. [Nguyên Lý Hoạt Động Của Code (Dễ Hiểu Cho Người Mới)](#-nguyên-lý-hoạt-động-của-code-dễ-hiểu-cho-người-mới)
+3. [Giải Mã 4 Tầng Vòng Lặp Thời Gian Thực (Multi-Rate Loop)](#-giải-mã-4-tầng-vòng-lặp-thời-gian-thực-multi-rate-loop)
+4. [Phân Công Nhiệm Vụ Từng File Mã Nguồn](#-phân-công-nhiệm-vụ-từng-file-mã-nguồn)
+5. [Phần Cứng & Sơ Đồ Chân GPIO](#-phần-cứng--sơ-đồ-chân-gpio)
+6. [Bố Trí Động Cơ Quad-X & Chiều Quay](#-bố-trí-động-cơ-quad-x--chiều-quay)
+7. [Hệ Thống Tụ Lọc Kép & Chống Nhiễu](#-hệ-thống-tụ-lọc-kép--chống-nhiễu)
+8. [Cài Đặt Môi Trường & Nạp Firmware](#-cài-đặt-môi-trường--nạp-firmware)
+9. [Hướng Dẫn Tùy Chỉnh Code Trong config.h](#-hướng-dẫn-tùy-chỉnh-code-trong-configh)
+10. [Quy Trình 5 Bước Thử Nghiệm Từ Bàn Test Đến Cất Cánh](#-quy-trình-5-bước-thử-nghiệm-từ-bàn-test-đến-cất-cánh)
+11. [Hướng Dẫn Sử Dụng GCS Web Tuner](#-hướng-dẫn-sử-dụng-gcs-web-tuner)
+12. [Tập Lệnh Điều Khiển Serial CLI](#-tập-lệnh-điều-khiển-serial-cli)
+13. [Cẩm Nang Tune PID Kép (Cascade PID Tuning Guide)](#-cẩm-nang-tune-pid-kép-cascade-pid-tuning-guide)
+14. [Bảng Thông Số PID Khởi Điểm Khuyến Nghị](#-bảng-thông-số-pid-khởi-điểm-khuyến-nghị)
+15. [Tài Liệu Chi Tiết Đi Kèm](#-tài-liệu-chi-tiết-đi-kèm)
 
 ---
 
@@ -41,40 +44,79 @@ Dự án firmware điều khiển bay (Flight Controller) chuyên dụng cho **Q
 
 ---
 
-## 📁 CẤU TRÚC THƯ MỤC DỰ ÁN
+## 🧠 NGUYÊN LÝ HOẠT ĐỘNG CỦA CODE (DỄ HIỂU CHO NGƯỜI MỚI)
+
+Để một chiếc Drone có thể tự giữ thăng bằng trên không, hệ thống firmware hoạt động liên tục theo chu trình khép kín sau:
 
 ```text
-drone/
-├── platformio.ini              # Cấu hình PlatformIO cho ESP32-S3 (R16N8)
-├── README.md                   # Tài liệu tổng quan & hướng dẫn sử dụng chính (File này)
-├── src/
-│   ├── main.cpp                # Vòng lặp chính 250Hz (Fast / Medium / Slow Loop)
-│   ├── config.h                # Khai báo chân GPIO, tần số, giới hạn an toàn & PID mặc định
-│   ├── sensors/
-│   │   ├── ImuSensor.h/.cpp        # Driver MPU6050 (I2C 400kHz, DLPF 98Hz, calib Bias)
-│   │   ├── Magnetometer.h/.cpp     # Driver HMC5883L / QMC5883L (Tự nhận dạng chip thật/clone)
-│   │   ├── Barometer.h/.cpp        # Driver BMP280 (Áp suất khí quyển & ước tính độ cao)
-│   │   └── GpsReader.h/.cpp        # Driver GPS ATGM336H (UART1 NMEA 0183 @ 9600 baud)
-│   ├── actuators/
-│   │   └── MotorController.h/.cpp  # Driver điều khiển ESC qua PCA9685 / LEDC Hardware PWM
-│   ├── control/
-│   │   ├── AttitudeEstimator.h/.cpp# Thuật toán Mahony AHRS hợp nhất dữ liệu 9-DOF
-│   │   ├── PidController.h/.cpp    # Bộ điều khiển PID (Anti-Windup, LPF D-term)
-│   │   ├── MotorMixer.h/.cpp       # Hòa trộn công suất Quad-X và quản lý Cascade PID
-│   │   ├── ControlInputSource.h    # Interface trừu tượng nhận lệnh điều khiển
-│   │   └── SerialControlInput.h/.cpp# Xử lý lệnh Serial CLI & truyền gói tin Telemetry
-│   └── safety/
-│       └── FailsafeManager.h/.cpp  # Giám sát an toàn: Mất sóng, góc nghiêng >45°, lỗi cảm biến
-├── tools/
-│   ├── tuner/
-│   │   └── index.html          # Giao diện GCS Web Tuner Realtime (Web Serial API)
-│   └── i2c_scanner/
-│       └── main.cpp            # Tool kiểm tra phát hiện địa chỉ phần cứng I2C
-└── docs/
-    ├── CIRCUIT_DIAGRAM.html    # Bản vẽ mạch điện SVG đồ họa tương tác phân lớp
-    ├── WIRING_SCHEMATIC.md     # Cẩm nang 50 đường dây đấu nối chi tiết
-    └── USER_GUIDE_AND_TUNING.md# Cẩm nang chuyên sâu quy trình Tune PID và bay thực địa
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         CHU TRÌNH CÂN BẰNG TỰ ĐỘNG                               │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+ [ CẢM BIẾN ] ──► MPU6050 đo gia tốc rung & tốc độ xoay (250 lần / giây)
+       │
+       ▼
+ [ NÃO BỘ ] ──► Thuật toán Mahony AHRS tính ra góc nghiêng thật 3D: Roll, Pitch, Yaw
+       │
+       ▼
+ [ SO SÁNH ] ──► So sánh: [Góc người lái muốn] vs [Góc máy bay đang nghiêng thật]
+       │         ──► Tạo ra "Sai số" (Error)
+       ▼
+ [ BỘ PID ] ──► Tính toán lực cần bù trừ để đưa sai số về 0 (PID kép 2 vòng)
+       │
+       ▼
+ [ MIXER ] ──► Bộ chia lực Quad-X cộng/trừ xung cho từng cánh (M1, M2, M3, M4)
+       │
+       ▼
+ [ ĐỘNG CƠ ] ──► 4 ESC & Động cơ điều chỉnh tốc độ tức thì ──► Drone thăng bằng!
 ```
+
+---
+
+## ⏱️ GIẢI MÃ 4 TẦNG VÒNG LẶP THỜI GIAN THỰC (MULTI-RATE LOOP)
+
+Trong `src/main.cpp`, vi điều khiển ESP32-S3 không dùng hàm `delay()` làm nghẽn CPU, mà chia công việc thành **4 tầng thời gian độc lập**:
+
+```text
++------------------------------------------------------------------------------------+
+| 1. FAST LOOP (250Hz - Mỗi 4.0ms) ── VÒNG SINH TỬ ĐIỀU KHIỂN CÂN BẰNG               |
+|    • Đọc dữ liệu MPU6050 (Gyro + Accel).                                          |
+|    • Chạy bộ lọc Mahony AHRS ước lượng góc Roll, Pitch, Yaw.                      |
+|    • Kiểm tra an toàn Failsafe (Góc nghiêng < 45°, mất sóng < 500ms).              |
+|    • Chạy thuật toán Cascade PID & Bơm xung PWM ra 4 ESC động cơ.                 |
++------------------------------------------------------------------------------------+
+| 2. MEDIUM LOOP (50Hz - Mỗi 20ms) ── VÒNG CẢM BIẾN PHỤ & LỆNH ĐIỀU KHIỂN             |
+|    • Đọc Từ kế HMC5883L / QMC5883L (La bàn số định hướng Bắc).                    |
+|    • Đọc Áp kế BMP280 (Tính toán độ cao khí áp).                                  |
+|    • Nhận & Xử lý lệnh Tune PID từ máy tính gửi xuống.                            |
++------------------------------------------------------------------------------------+
+| 3. SLOW LOOP (10Hz - Mỗi 100ms) ── VÒNG TRUYỀN DỮ LIỆU & GPS                       |
+|    • Đọc gói tin tọa độ NMEA từ module GPS ATGM336H.                              |
+|    • Đóng gói chuỗi Telemetry $TEL,... gửi về máy tính vẽ đồ thị 60fps.           |
++------------------------------------------------------------------------------------+
+| 4. HEARTBEAT (1Hz - Mỗi 1.0s) ── NHỊP TIM HỆ THỐNG                                 |
+|    • Nhấp nháy đèn LED trạng thái báo hệ thống đang hoạt động bình thường.        |
++------------------------------------------------------------------------------------+
+```
+
+---
+
+## 📂 PHÂN CÔNG NHIỆM VỤ TỪNG FILE MÃ NGUỒN
+
+| File Mã Nguồn | Vai Trò & Chức Năng Cụ Thể |
+| :--- | :--- |
+| **`src/main.cpp`** | **Tổng chỉ huy**: Quản lý 4 tầng vòng lặp thời gian thực, điều phối đọc cảm biến, gọi PID và gửi Telemetry. |
+| **`src/config.h`** | **Bảng cài đặt**: Nơi tập trung toàn bộ cấu hình chân GPIO, tần số vòng lặp, PID mặc định và giới hạn an toàn. |
+| **`src/sensors/ImuSensor.cpp`** | **Mắt thần**: Giao tiếp MPU6050 qua I2C 400kHz, kích hoạt lọc số DLPF 98Hz và tự động trừ trôi điểm 0 (Gyro Bias). |
+| **`src/sensors/Magnetometer.cpp`** | **La bàn**: Tự động nhận diện chip thật HMC5883L (0x1E) hay chip clone QMC5883L (0x0D), xoay 3D calib từ trường. |
+| **`src/sensors/Barometer.cpp`** | **Đo độ cao**: Đọc BMP280, tự động lấy mẫu áp suất mặt đất làm mốc $0.0\text{m}$ khi khởi động. |
+| **`src/sensors/GpsReader.cpp`** | **Định vị**: Đọc NMEA 0183 qua UART1 từ ATGM336H, phân tích kinh độ, vĩ độ, số lượng vệ tinh. |
+| **`src/control/AttitudeEstimator.cpp`** | **Não bộ không gian**: Thuật toán Mahony AHRS khử trôi góc nghiêng bằng đại số Quaternion. |
+| **`src/control/PidController.cpp`** | **Thuật toán PID**: Tính sai số $P, I, D$, tích hợp chống bão hòa tích phân (Anti-Windup) và lọc rung D-term LPF. |
+| **`src/control/MotorMixer.cpp`** | **Bộ chia lực**: Tính toán ma trận hòa trộn cho Quadcopter khung X ($M_1, M_2, M_3, M_4$). |
+| **`src/safety/FailsafeManager.cpp`** | **Bảo vệ an toàn**: Tự động ngắt motor khi mất sóng >500ms, góc nghiêng lật >45° hoặc kẹt I2C. |
+| **`src/control/SerialControlInput.cpp`**| **Cầu nối giao tiếp**: Phân tích cú pháp tập lệnh CLI và gửi gói tin trạng thái cho Web Tuner. |
+| **`src/actuators/MotorController.cpp`** | **Cơ cấu chấp hành**: Phát xung PWM 50–400Hz (1000–2000µs) qua PCA9685 hoặc ESP32 hardware LEDC. |
 
 ---
 
@@ -203,32 +245,70 @@ pio device monitor -b 115200
 
 ---
 
-## 🧪 QUY TRÌNH KIỂM TRA PHẦN CỨNG TRÊN BÀN TEST (BENCH TEST)
+## 🛠️ HƯỚNG DẪN TÙY CHỈNH CODE TRONG CONFIG.H
 
-⚠️ **CẢNH BÁO AN TOÀN SỐNG CÒN**:
-> **TUYỆT ĐỐI THÁO HẾT 4 CÁNH QUẠT KHI THỬ NGHIỆM TRÊN BÀN TEST!**
+Mọi tùy chỉnh phần cứng và an toàn được tập trung tại file **`src/config.h`**. Khi cần thay đổi, bạn chỉ cần sửa giá trị tương ứng:
 
-### Bước 1: Quét kiểm tra toàn bộ địa chỉ I2C
-Biên dịch và chạy tool I2C Scanner để xác nhận vi điều khiển nhận diện đầy đủ các module:
+```cpp
+// 1. Muốn đổi chân I2C cảm biến:
+#define PIN_I2C_SDA         8       // Đổi chân Data SDA nếu hàn sang GPIO khác
+#define PIN_I2C_SCL         9       // Đổi chân Clock SCL
+
+// 2. Muốn đổi chân xuất xung PWM cho 4 ESC:
+#define PIN_MOTOR_1         4       // ESC 1 (Trước Phải)
+#define PIN_MOTOR_2         5       // ESC 2 (Trước Trái)
+#define PIN_MOTOR_3         6       // ESC 3 (Sau Phải)
+#define PIN_MOTOR_4         7       // ESC 4 (Sau Trái)
+
+// 3. Muốn giới hạn ga an toàn khi mới tập bay:
+#define MAX_TEST_THROTTLE_PERCENT 30    // Giới hạn ga tối đa trên bàn test là 30%
+
+// 4. Muốn đổi góc nghiêng tự ngắt khẩn cấp (Emergency Tilt Cutoff):
+#define MAX_TILT_ANGLE_DEG      45.0f   // Nghiêng quá 45 độ sẽ tự động tắt motor ngay lập tức
+```
+
+---
+
+## 🚀 QUY TRÌNH 5 BƯỚC THỬ NGHIỆM TỪ BÀN TEST ĐẾN CẤT CÁNH
+
+⚠️ **NGUYÊN TẮC AN TOÀN SỐNG CÒN**:
+> **TUYỆT ĐỐI KHÔNG GẮN CÁNH QUẠT Ở BƯỚC 1, 2, 3 VÀ 4!**
+
+```text
+[ BƯỚC 1: QUÉT I2C ] ──► Nạp tool `i2c_scanner` kiểm tra nhận đủ 0x68, 0x1E, 0x76.
+          │
+          ▼
+[ BƯỚC 2: CALIB TĨNH ] ──► Đặt drone trên mặt phẳng tĩnh, gửi lệnh `CALIB GYRO`.
+          │
+          ▼
+[ BƯỚC 3: TEST MOTOR ] ──► Gửi lệnh `TEST_MOTOR M1 12` kiểm tra đúng chiều quay CW/CCW.
+          │
+          ▼
+[ BƯỚC 4: TUNE TRÊN TAY ] ──► Cầm thân drone (hoặc treo dây), tăng ga 15-20%, tune Roll/Pitch Kp.
+          │
+          ▼
+[ BƯỚC 5: GẮN CÁNH & BAY ] ──► Ra bãi cỏ rộng thoáng, gắn cánh 1045, Arm và bay thử nghiệm!
+```
+
+### Chi tiết từng bước thực hiện:
+
+#### Bước 1: Quét kiểm tra toàn bộ địa chỉ I2C
+Biên dịch và chạy tool I2C Scanner:
 ```bash
 pio run -e i2c_scanner -t upload
 pio device monitor -b 115200
 ```
-**Bảng kết quả chuẩn cần đạt:**
-* `0x68`: IMU MPU6050
-* `0x1E` (hoặc `0x0D`): Magnetometer HMC5883L / QMC5883L
-* `0x76` (hoặc `0x77`): Barometer BMP280
-* `0x40`: PWM Expander PCA9685 (nếu có gắn)
+*Kết quả chuẩn cần đạt:* `0x68` (MPU6050), `0x1E` hoặc `0x0D` (La bàn), `0x76` (BMP280).
 
-### Bước 2: Kiểm tra chiều quay từng động cơ qua lệnh CLI
+#### Bước 2: Kiểm tra chiều quay 4 động cơ
 Nạp lại firmware chính `esp32s3`. Mở Serial Monitor hoặc Web Tuner, gửi lệnh test từng motor ở mức ga thấp ($10\% - 15\%$):
 ```text
-TEST_MOTOR M1 12   -> Kiểm tra Động cơ 1 quay NGƯỢC chiều kim đồng hồ (CCW)
-TEST_MOTOR M2 12   -> Kiểm tra Động cơ 2 quay THUẬN chiều kim đồng hồ (CW)
-TEST_MOTOR M3 12   -> Kiểm tra Động cơ 3 quay THUẬN chiều kim đồng hồ (CW)
-TEST_MOTOR M4 12   -> Kiểm tra Động cơ 4 quay NGƯỢC chiều kim đồng hồ (CCW)
+TEST_MOTOR M1 12   -> Motor 1 (Trước Phải) phải quay NGƯỢC chiều kim đồng hồ (CCW)
+TEST_MOTOR M2 12   -> Motor 2 (Trước Trái) phải quay THUẬN chiều kim đồng hồ (CW)
+TEST_MOTOR M3 12   -> Motor 3 (Sau Phải) phải quay THUẬN chiều kim đồng hồ (CW)
+TEST_MOTOR M4 12   -> Motor 4 (Sau Trái) phải quay NGƯỢC chiều kim đồng hồ (CCW)
 ```
-*Nếu motor nào quay ngược chiều quy định, ngắt pin và **đảo chéo 2 trong 3 dây pha** giữa ESC và Motor đó.*
+*Nếu motor nào quay ngược, ngắt pin và **đảo chéo 2 trong 3 dây pha** giữa ESC và Motor đó.*
 
 ---
 
@@ -316,7 +396,7 @@ Tốc độ đo MPU6050 Gyro (deg/s) ──────────────�
 
 ---
 
-## 📊 BẢNG THÔNG SỐ PID KHỞI ĐIỂM
+## 📊 BẢNG THÔNG SỐ PID KHỞI ĐIỂM KHUYẾN NGHỊ
 
 Dành cho khung Quadcopter 330–450mm, động cơ A2212 1000KV, cánh quạt 1045 và pin 3S:
 
