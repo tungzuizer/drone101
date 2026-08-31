@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sơ Đồ Mạch Điện Chi Tiết Toàn Diện — ESP32-S3 Flight Controller</title>
+    <title>Sơ Đồ Mạch Điện 100% Vật Lý & Phân Bổ 44 Chân — ESP32-S3 Flight Controller</title>
     <style>
         :root {
-            --bg-main: #070a13;
-            --bg-card: #0f172a;
-            --bg-card-hover: #1e293b;
+            --bg-main: #060911;
+            --bg-card: #0c1222;
+            --bg-card-hover: #162035;
             --border-color: #1e293b;
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
@@ -30,7 +30,8 @@
             --wire-motor: #38bdf8;
             --wire-uart-rx: #f472b6;
             --wire-uart-tx: #60a5fa;
-            --wire-cfg: #9333ea;
+            --wire-adc: #a855f7;
+            --wire-buzzer: #fb923c;
         }
 
         * {
@@ -55,15 +56,16 @@
             flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 20px;
+            padding: 18px 24px;
             background: var(--bg-card);
-            border-radius: 12px;
+            border-radius: 14px;
             border: 1px solid var(--border-color);
-            gap: 12px;
+            gap: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
         .header-title h1 {
-            font-size: 22px;
+            font-size: 23px;
             font-weight: 800;
             background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
             -webkit-background-clip: text;
@@ -76,7 +78,7 @@
             margin-top: 4px;
         }
 
-        /* --- Bộ lọc lớp dây (Interactive Filters) --- */
+        /* --- Bộ lọc lớp dây tương tác (Interactive Layer Filters) --- */
         .filter-controls {
             display: flex;
             flex-wrap: wrap;
@@ -85,10 +87,10 @@
         }
 
         .filter-btn {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.04);
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
-            padding: 6px 14px;
+            padding: 7px 14px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
@@ -106,14 +108,14 @@
 
         .filter-btn.active {
             background: var(--accent-blue);
-            color: #070a13;
+            color: #060911;
             border-color: var(--accent-blue);
-            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
         }
 
         .color-dot {
-            width: 8px;
-            height: 8px;
+            width: 9px;
+            height: 9px;
             border-radius: 50%;
         }
 
@@ -121,17 +123,17 @@
         .canvas-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 14px;
+            border-radius: 16px;
             padding: 16px;
             overflow-x: auto;
             position: relative;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            box-shadow: 0 20px 45px rgba(0,0,0,0.7);
         }
 
         svg {
             display: block;
             margin: 0 auto;
-            min-width: 1450px;
+            min-width: 1750px;
             height: auto;
         }
 
@@ -141,29 +143,29 @@
         }
         .wire:hover {
             stroke-width: 5 !important;
-            filter: drop-shadow(0 0 6px #fff);
+            filter: drop-shadow(0 0 8px #fff);
             cursor: pointer;
         }
         .wire-dimmed {
-            opacity: 0.08 !important;
+            opacity: 0.05 !important;
         }
         .wire-highlight {
             opacity: 1 !important;
-            filter: drop-shadow(0 0 8px currentColor);
+            filter: drop-shadow(0 0 10px currentColor);
         }
 
-        /* --- Bảng thống kê chi tiết các đường dây --- */
+        /* --- Grid Thống Kê & Bảng Dây --- */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 18px;
         }
 
         .info-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 16px;
+            border-radius: 12px;
+            padding: 18px;
         }
 
         .info-card h3 {
@@ -181,7 +183,7 @@
         }
 
         th, td {
-            padding: 7px 10px;
+            padding: 8px 10px;
             text-align: left;
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
@@ -194,7 +196,7 @@
 
         .tag {
             display: inline-block;
-            padding: 2px 6px;
+            padding: 2px 7px;
             border-radius: 4px;
             font-size: 11px;
             font-weight: 700;
@@ -204,6 +206,7 @@
         .tag-blue { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
         .tag-yellow { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
         .tag-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+        .tag-orange { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
 
         .warn-alert {
             background: rgba(239, 68, 68, 0.1);
@@ -221,23 +224,24 @@
 
     <header>
         <div class="header-title">
-            <h1>SƠ ĐỒ NỐI DÂY CHI TIẾT 100% VẬT LÝ — ESP32-S3 FLIGHT CONTROLLER</h1>
-            <p>Bao gồm toàn bộ 12 dây pha động cơ, 8 dây nguồn PDB, 5 tụ 104, 2 trở kéo I2C, chân cấu hình AD0/SDO/CSB/OE & GPS</p>
+            <h1>SƠ ĐỒ MẠCH ĐIỆN VẬT LÝ 100% & QUY HOẠCH 44 CHÂN — ESP32-S3 FC</h1>
+            <p>Bao gồm: 12 dây pha Motor, 8 dây PDB 11.1V, Cầu phân áp VBAT ADC, Còi Buzzer, Đèn Arm LED, RC Receiver, GPS, I2C Bus & Hệ Thống Tụ Lọc Kép (Tụ Gốm 104 + Tụ Hóa 100µF)</p>
         </div>
         <div class="filter-controls">
-            <button class="filter-btn active" onclick="filterWires('all')"><div class="color-dot" style="background:#fff;"></div>Tất cả (All)</button>
-            <button class="filter-btn" onclick="filterWires('grp-power')"><div class="color-dot" style="background:var(--wire-bat);"></div>Nguồn 11.1V & Động cơ (12 dây)</button>
-            <button class="filter-btn" onclick="filterWires('grp-logic-power')"><div class="color-dot" style="background:var(--wire-3v3);"></div>Nguồn 5V & 3.3V Logic</button>
-            <button class="filter-btn" onclick="filterWires('grp-i2c')"><div class="color-dot" style="background:var(--wire-sda);"></div>Bus I2C (SDA, SCL + Trở kéo)</button>
-            <button class="filter-btn" onclick="filterWires('grp-pwm')"><div class="color-dot" style="background:var(--wire-pwm);"></div>Xung PWM ESC (4 Kênh)</button>
-            <button class="filter-btn" onclick="filterWires('grp-gps')"><div class="color-dot" style="background:var(--wire-uart-rx);"></div>GPS UART (TX, RX)</button>
-            <button class="filter-btn" onclick="filterWires('grp-noise')"><div class="color-dot" style="background:var(--accent-yellow);"></div>Tụ 104 & Chân cấu hình</button>
+            <button class="filter-btn active" onclick="filterWires('all')"><div class="color-dot" style="background:#fff;"></div>Tất cả (All Wires)</button>
+            <button class="filter-btn" onclick="filterWires('grp-power')"><div class="color-dot" style="background:var(--wire-bat);"></div>Nguồn 11.1V & Motor (12 dây pha)</button>
+            <button class="filter-btn" onclick="filterWires('grp-logic-power')"><div class="color-dot" style="background:var(--wire-3v3);"></div>Nguồn 5V UBEC, 3.3V & GND</button>
+            <button class="filter-btn" onclick="filterWires('grp-i2c')"><div class="color-dot" style="background:var(--wire-sda);"></div>Bus I2C Cảm Biến & Trở Kéo</button>
+            <button class="filter-btn" onclick="filterWires('grp-motor-ctrl')"><div class="color-dot" style="background:var(--wire-pwm);"></div>Tuyến PWM Điều Khiển 4 ESC</button>
+            <button class="filter-btn" onclick="filterWires('grp-adc-buzzer')"><div class="color-dot" style="background:var(--wire-buzzer);"></div>VBAT ADC, Buzzer & Arm LED</button>
+            <button class="filter-btn" onclick="filterWires('grp-comms')"><div class="color-dot" style="background:var(--wire-uart-rx);"></div>GPS UART1 & RC Receiver UART2</button>
+            <button class="filter-btn" onclick="filterWires('grp-cfg-noise')"><div class="color-dot" style="background:var(--accent-yellow);"></div>Tụ 104 & Chân Cấu Hình Cứng</button>
         </div>
     </header>
 
-    <!-- SƠ ĐỒ MẠCH SVG TOÀN BỘ DÂY VẬT LÝ -->
+    <!-- SƠ ĐỒ MẠCH SVG TOÀN BỘ DÂY VẬT LÝ VÀ CHÂN PINOUT -->
     <div class="canvas-card">
-        <svg id="schematicSvg" viewBox="0 0 1500 1020" width="1500" height="1020" xmlns="http://www.w3.org/2000/svg">
+        <svg id="schematicSvg" viewBox="0 0 1780 1200" width="1780" height="1200" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                     <feGaussianBlur stdDeviation="3" result="blur" />
@@ -265,490 +269,571 @@
                 </linearGradient>
             </defs>
 
-            <!-- NỀN LƯỚI TỌA ĐỘ -->
+            <!-- LƯỚI TỌA ĐỘ NỀN -->
             <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
                 <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.025)" stroke-width="1"/>
             </pattern>
-            <rect width="1500" height="1020" fill="url(#grid)" />
+            <rect width="1780" height="1200" fill="url(#grid)" />
 
             <!-- =================================================================== -->
-            <!-- 1. KHỐI NGUỒN PIN LIPO 3S, PDB, TỤ 1000uF & UBEC 5V/3A -->
+            <!-- 1. KHỐI NGUỒN PIN LIPO 3S, PDB, TỤ 1000uF, UBEC 5V & CẦU TRỞ ADC -->
             <!-- =================================================================== -->
             <!-- PIN LIPO 3S -->
             <g transform="translate(40, 40)">
-                <rect width="180" height="85" rx="8" fill="#047857" stroke="#10b981" stroke-width="2"/>
-                <text x="90" y="28" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">PIN LIPO 3S (11.1V-12.6V)</text>
-                <text x="90" y="48" font-size="11" fill="#a7f3d0" text-anchor="middle">2200mAh >= 25C (XT60)</text>
-                <circle cx="165" cy="65" r="7" fill="#dc2626"/><text x="165" y="69" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">+</text>
-                <circle cx="145" cy="65" r="7" fill="#475569"/><text x="145" y="69" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">-</text>
+                <rect width="190" height="90" rx="8" fill="#047857" stroke="#10b981" stroke-width="2"/>
+                <text x="95" y="28" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">PIN LIPO 3S (11.1V-12.6V)</text>
+                <text x="95" y="48" font-size="11" fill="#a7f3d0" text-anchor="middle">2200mAh >= 25C (XT60)</text>
+                <!-- Terminal Pads -->
+                <circle id="pad-bat-pos" cx="160" cy="70" r="8" fill="#dc2626"/><text x="160" y="74" font-size="10" fill="#fff" font-weight="bold" text-anchor="middle">+</text>
+                <circle id="pad-bat-neg" cx="130" cy="70" r="8" fill="#475569"/><text x="130" y="74" font-size="10" fill="#fff" font-weight="bold" text-anchor="middle">-</text>
             </g>
 
             <!-- PDB (POWER DISTRIBUTION BOARD) -->
-            <g transform="translate(280, 25)">
-                <rect width="250" height="115" rx="10" fill="url(#grad-pdb)" stroke="#ef4444" stroke-width="2"/>
-                <text x="125" y="26" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle">PDB (POWER BOARD)</text>
-                <text x="125" y="44" font-size="10" fill="#fca5a5" text-anchor="middle">Chia nguồn 11.1V ra 4 ESC + UBEC</text>
+            <g transform="translate(290, 25)">
+                <rect width="280" height="125" rx="10" fill="url(#grad-pdb)" stroke="#ef4444" stroke-width="2"/>
+                <text x="140" y="26" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle">PDB (POWER DISTRIBUTION)</text>
+                <text x="140" y="44" font-size="10" fill="#fca5a5" text-anchor="middle">Chia nguồn 11.1V ra 4 ESC + UBEC + VBAT ADC</text>
 
-                <!-- Tụ lọc 1000uF / 25V hàn trên PDB -->
-                <rect x="25" y="55" width="200" height="26" rx="4" fill="#991b1b" stroke="#f87171"/>
-                <text x="125" y="72" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">⚡ TỤ HÓA 1000µF / 25V LOW-ESR</text>
+                <!-- Tụ lọc 1000uF / 25V Low-ESR -->
+                <rect x="30" y="55" width="220" height="25" rx="4" fill="#991b1b" stroke="#f87171"/>
+                <text x="140" y="72" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">⚡ TỤ HÓA 1000µF / 25V LOW-ESR</text>
 
-                <!-- Các trạm hàn ra ESC -->
-                <circle cx="30" cy="100" r="5" fill="#dc2626"/><text x="30" y="113" font-size="8" fill="#fca5a5" text-anchor="middle">ESC1+</text>
-                <circle cx="50" cy="100" r="5" fill="#475569"/>
-                <circle cx="80" cy="100" r="5" fill="#dc2626"/><text x="80" y="113" font-size="8" fill="#fca5a5" text-anchor="middle">ESC2+</text>
-                <circle cx="100" cy="100" r="5" fill="#475569"/>
-                <circle cx="130" cy="100" r="5" fill="#dc2626"/><text x="130" y="113" font-size="8" fill="#fca5a5" text-anchor="middle">ESC3+</text>
-                <circle cx="150" cy="100" r="5" fill="#475569"/>
-                <circle cx="180" cy="100" r="5" fill="#dc2626"/><text x="180" y="113" font-size="8" fill="#fca5a5" text-anchor="middle">ESC4+</text>
-                <circle cx="200" cy="100" r="5" fill="#475569"/>
+                <!-- Cọc vào từ Pin -->
+                <circle id="pad-pdb-in-pos" cx="20" cy="70" r="6" fill="#dc2626"/>
+                <circle id="pad-pdb-in-neg" cx="20" cy="95" r="6" fill="#475569"/>
+
+                <!-- Trạm hàn ra 4 ESC -->
+                <circle id="pad-pdb-esc1-pos" cx="50" cy="112" r="5" fill="#dc2626"/><text x="50" y="123" font-size="7" fill="#fca5a5" text-anchor="middle">E1+</text>
+                <circle id="pad-pdb-esc1-neg" cx="68" cy="112" r="5" fill="#475569"/>
+                <circle id="pad-pdb-esc2-pos" cx="105" cy="112" r="5" fill="#dc2626"/><text x="105" y="123" font-size="7" fill="#fca5a5" text-anchor="middle">E2+</text>
+                <circle id="pad-pdb-esc2-neg" cx="123" cy="112" r="5" fill="#475569"/>
+                <circle id="pad-pdb-esc3-pos" cx="160" cy="112" r="5" fill="#dc2626"/><text x="160" y="123" font-size="7" fill="#fca5a5" text-anchor="middle">E3+</text>
+                <circle id="pad-pdb-esc3-neg" cx="178" cy="112" r="5" fill="#475569"/>
+                <circle id="pad-pdb-esc4-pos" cx="215" cy="112" r="5" fill="#dc2626"/><text x="215" y="123" font-size="7" fill="#fca5a5" text-anchor="middle">E4+</text>
+                <circle id="pad-pdb-esc4-neg" cx="233" cy="112" r="5" fill="#475569"/>
             </g>
 
-            <!-- UBEC 5V/3A -->
-            <g transform="translate(590, 40)">
-                <rect width="140" height="85" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
-                <text x="70" y="28" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">UBEC 5V / 3A</text>
-                <text x="70" y="46" font-size="10" fill="#c7d2fe" text-anchor="middle">Hạ áp 11.1V -> 5.0V</text>
-                <rect x="15" y="58" width="50" height="18" rx="3" fill="#ef4444"/><text x="40" y="71" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">5V OUT</text>
-                <rect x="75" y="58" width="50" height="18" rx="3" fill="#475569"/><text x="100" y="71" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+            <!-- CẦU PHÂN ÁP VBAT ADC (10kΩ & 2.2kΩ) -->
+            <g transform="translate(620, 25)">
+                <rect width="180" height="125" rx="8" fill="#1e1b4b" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="90" y="24" font-size="12" font-weight="bold" fill="#c084fc" text-anchor="middle">CẦU PHÂN ÁP VBAT SENSE</text>
+                <text x="90" y="40" font-size="9" fill="#e9d5ff" text-anchor="middle">Hạ 12.6V về 2.27V (An toàn cho ADC)</text>
+                <rect x="20" y="52" width="140" height="18" rx="3" fill="#6b21a8"/>
+                <text x="90" y="65" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">R1 = 10kΩ (Nối PDB 11.1V)</text>
+                <rect x="20" y="74" width="140" height="18" rx="3" fill="#6b21a8"/>
+                <text x="90" y="87" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">R2 = 2.2kΩ (Nối Mass GND)</text>
+                <rect x="30" y="98" width="120" height="18" rx="3" fill="#a855f7"/>
+                <text x="90" y="111" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">V_OUT $\rightarrow$ ESP32 GPIO 1</text>
+            </g>
+
+            <!-- UBEC 5V / 3A -->
+            <g transform="translate(850, 40)">
+                <rect width="160" height="90" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
+                <text x="80" y="28" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">UBEC 5V / 3A</text>
+                <text x="80" y="46" font-size="10" fill="#c7d2fe" text-anchor="middle">Hạ áp 11.1V $\rightarrow$ 5.0V sạch</text>
+                <rect x="15" y="60" width="60" height="20" rx="3" fill="#ef4444"/><text x="45" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">5V OUT</text>
+                <rect x="85" y="60" width="60" height="20" rx="3" fill="#475569"/><text x="115" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
             </g>
 
             <!-- =================================================================== -->
-            <!-- 2. VI ĐIỀU KHIỂN TRUNG TÂM ESP32-S3 (R16N8) -->
+            <!-- 2. TRUNG TÂM: VI ĐIỀU KHIỂN ESP32-S3 (HIỂN THỊ ĐỦ 44 CHÂN DUAL-HEADER) -->
             <!-- =================================================================== -->
-            <g transform="translate(520, 230)">
-                <rect width="320" height="420" rx="14" fill="url(#grad-esp)" stroke="#38bdf8" stroke-width="3" filter="url(#glow)"/>
-                <text x="160" y="32" font-size="17" font-weight="800" fill="#38bdf8" text-anchor="middle">ESP32-S3 DevKitC-1</text>
-                <text x="160" y="50" font-size="11" fill="#94a3b8" text-anchor="middle">Dual-Core 240MHz | 16MB Flash | 8MB PSRAM</text>
+            <g transform="translate(680, 220)">
+                <!-- Thân mạch ESP32-S3 DevKitC-1 -->
+                <rect width="440" height="600" rx="16" fill="url(#grad-esp)" stroke="#38bdf8" stroke-width="3" filter="url(#glow)"/>
+                <text x="220" y="32" font-size="18" font-weight="800" fill="#38bdf8" text-anchor="middle">ESP32-S3 DevKitC-1 (R16N8)</text>
+                <text x="220" y="52" font-size="11" fill="#94a3b8" text-anchor="middle">Dual-Core Xtensa LX7 @ 240MHz | 16MB Octal Flash | 8MB PSRAM</text>
 
-                <!-- Cổng USB CDC -->
-                <rect x="120" y="3" width="80" height="14" rx="3" fill="#64748b" stroke="#cbd5e1"/>
-                <text x="160" y="13" font-size="8" fill="#0f172a" font-weight="bold" text-anchor="middle">USB CDC (GCS)</text>
+                <!-- Cổng Native USB CDC (GCS Telemetry) -->
+                <rect x="180" y="3" width="80" height="16" rx="4" fill="#64748b" stroke="#cbd5e1"/>
+                <text x="220" y="15" font-size="8" fill="#0f172a" font-weight="bold" text-anchor="middle">USB CDC (GCS)</text>
 
-                <!-- Chip ESP32-S3 IC -->
-                <rect x="105" y="170" width="110" height="110" rx="8" fill="#020617" stroke="#334155" stroke-width="2"/>
-                <text x="160" y="220" font-size="13" font-weight="bold" fill="#64748b" text-anchor="middle">ESP32-S3</text>
-                <text x="160" y="240" font-size="10" fill="#38bdf8" text-anchor="middle">FC LOOP 250Hz</text>
+                <!-- Chip ESP32-S3 IC Core -->
+                <rect x="160" y="240" width="120" height="120" rx="10" fill="#020617" stroke="#334155" stroke-width="2"/>
+                <text x="220" y="295" font-size="14" font-weight="bold" fill="#64748b" text-anchor="middle">ESP32-S3</text>
+                <text x="220" y="315" font-size="11" fill="#38bdf8" text-anchor="middle">FC LOOP 250Hz</text>
 
-                <!-- Tụ gốm 104 lọc chân nguồn ESP32 -->
-                <rect x="100" y="70" width="120" height="18" rx="3" fill="#b45309"/>
-                <text x="160" y="83" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC</text>
+                <!-- Lọc nguồn kép 5V cho ESP32 (Tụ hóa 100µF + Tụ gốm 104) -->
+                <rect x="100" y="70" width="240" height="20" rx="4" fill="#b45309" stroke="#f59e0b"/>
+                <text x="220" y="84" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">⚡ LỌC KÉP 5V: Tụ Hóa 100µF + Tụ 104</text>
 
-                <!-- HÀNG CHÂN BÊN TRÁI -->
+                <!-- CẢNH BÁO VÙNG CẤM GPIO -->
+                <rect x="25" y="545" width="390" height="38" rx="6" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+                <text x="220" y="561" font-size="10" fill="#f87171" font-weight="bold" text-anchor="middle">⛔ CẤM DÙNG: GPIO 33..37 (Octal SPI PSRAM/Flash)</text>
+                <text x="220" y="575" font-size="9" fill="#94a3b8" text-anchor="middle">GPIO 19/20 dùng riêng cho Native USB CDC Telemetry</text>
+
+                <!-- HÀNG CHÂN HEADER BÊN TRÁI (LEFT PINS) -->
+                <!-- 3V3 VOUT -->
+                <g transform="translate(10, 95)"><rect width="65" height="20" rx="3" fill="#f59e0b"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">3V3 OUT</text></g>
                 <!-- 5V VIN -->
-                <rect x="8" y="95" width="55" height="22" rx="4" fill="#ef4444"/><text x="35" y="110" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">5V / VIN</text>
-                <!-- 3V3 OUT -->
-                <rect x="8" y="130" width="55" height="22" rx="4" fill="#f59e0b"/><text x="35" y="145" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">3V3 OUT</text>
+                <g transform="translate(10, 125)"><rect width="65" height="20" rx="3" fill="#ef4444"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">5V / VIN</text></g>
                 <!-- GND -->
-                <rect x="8" y="165" width="55" height="22" rx="4" fill="#475569"/><text x="35" y="180" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">GND</text>
-                <!-- GPIO 8 SDA -->
-                <rect x="8" y="210" width="55" height="22" rx="4" fill="#10b981"/><text x="35" y="225" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">IO8/SDA</text>
-                <!-- GPIO 9 SCL -->
-                <rect x="8" y="245" width="55" height="22" rx="4" fill="#06b6d4"/><text x="35" y="260" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">IO9/SCL</text>
+                <g transform="translate(10, 155)"><rect width="65" height="20" rx="3" fill="#475569"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">GND</text></g>
+                <!-- GPIO 4 (PWM ESC 1) -->
+                <g transform="translate(10, 190)"><rect width="65" height="20" rx="3" fill="#c084fc"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO4 (M1)</text></g>
+                <!-- GPIO 5 (PWM ESC 2) -->
+                <g transform="translate(10, 220)"><rect width="65" height="20" rx="3" fill="#c084fc"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO5 (M2)</text></g>
+                <!-- GPIO 6 (PWM ESC 3) -->
+                <g transform="translate(10, 250)"><rect width="65" height="20" rx="3" fill="#c084fc"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO6 (M3)</text></g>
+                <!-- GPIO 7 (PWM ESC 4) -->
+                <g transform="translate(10, 280)"><rect width="65" height="20" rx="3" fill="#c084fc"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO7 (M4)</text></g>
+                <!-- GPIO 8 (I2C SDA) -->
+                <g transform="translate(10, 320)"><rect width="65" height="20" rx="3" fill="#10b981"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO8 (SDA)</text></g>
+                <!-- GPIO 9 (I2C SCL) -->
+                <g transform="translate(10, 350)"><rect width="65" height="20" rx="3" fill="#06b6d4"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO9 (SCL)</text></g>
+                <!-- GPIO 1 (VBAT ADC) -->
+                <g transform="translate(10, 390)"><rect width="65" height="20" rx="3" fill="#a855f7"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO1 (VBAT)</text></g>
+                <!-- GPIO 2 (CURRENT ADC) -->
+                <g transform="translate(10, 420)"><rect width="65" height="20" rx="3" fill="#a855f7"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO2 (CURR)</text></g>
+                <!-- GPIO 3 (ARM LED) -->
+                <g transform="translate(10, 455)"><rect width="65" height="20" rx="3" fill="#ef4444"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO3 (ARM)</text></g>
+                <!-- GPIO 10 (BUZZER) -->
+                <g transform="translate(10, 490)"><rect width="65" height="20" rx="3" fill="#fb923c"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO10 (BUZ)</text></g>
 
-                <!-- HÀNG CHÂN BÊN PHẢI -->
-                <!-- GPIO 17 U1RXD -->
-                <rect x="257" y="130" width="55" height="22" rx="4" fill="#ec4899"/><text x="285" y="145" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">IO17/RX</text>
-                <!-- GPIO 18 U1TXD -->
-                <rect x="257" y="165" width="55" height="22" rx="4" fill="#3b82f6"/><text x="285" y="180" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">IO18/TX</text>
-                <!-- GND Bên phải -->
-                <rect x="257" y="210" width="55" height="22" rx="4" fill="#475569"/><text x="285" y="225" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">GND</text>
-
-                <!-- Ghi chú tránh chân Octal PSRAM -->
-                <rect x="20" y="360" width="280" height="40" rx="6" fill="#1e293b" stroke="#334155"/>
-                <text x="160" y="377" font-size="10" fill="#f87171" font-weight="bold" text-anchor="middle">CẤM DÙNG: GPIO33..37 (Octal SPI PSRAM)</text>
-                <text x="160" y="392" font-size="9" fill="#94a3b8" text-anchor="middle">GPIO19/20 dành riêng cho USB D+/D-</text>
+                <!-- HÀNG CHÂN HEADER BÊN PHẢI (RIGHT PINS) -->
+                <!-- GPIO 17 (GPS U1RXD) -->
+                <g transform="translate(365, 95)"><rect width="65" height="20" rx="3" fill="#ec4899"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO17 (RX1)</text></g>
+                <!-- GPIO 18 (GPS U1TXD) -->
+                <g transform="translate(365, 125)"><rect width="65" height="20" rx="3" fill="#3b82f6"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO18 (TX1)</text></g>
+                <!-- GPIO 43 (RC U2RXD) -->
+                <g transform="translate(365, 165)"><rect width="65" height="20" rx="3" fill="#ec4899"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO43 (RX2)</text></g>
+                <!-- GPIO 44 (RC U2TXD) -->
+                <g transform="translate(365, 195)"><rect width="65" height="20" rx="3" fill="#3b82f6"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">IO44 (TX2)</text></g>
+                <!-- GPIO 48 (RGB WS2812) -->
+                <g transform="translate(365, 235)"><rect width="65" height="20" rx="3" fill="#10b981"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#000" text-anchor="middle">IO48 (RGB)</text></g>
+                <!-- GND Phải -->
+                <g transform="translate(365, 275)"><rect width="65" height="20" rx="3" fill="#475569"/><text x="32" y="14" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">GND</text></g>
+                <!-- Chân phụ dự phòng (GPIO 11..14) -->
+                <g transform="translate(365, 315)"><rect width="65" height="20" rx="3" fill="#334155"/><text x="32" y="14" font-size="8" fill="#94a3b8" text-anchor="middle">IO11..14</text></g>
+                <g transform="translate(365, 355)"><rect width="65" height="20" rx="3" fill="#334155"/><text x="32" y="14" font-size="8" fill="#94a3b8" text-anchor="middle">IO21/47</text></g>
             </g>
 
             <!-- =================================================================== -->
-            <!-- 3. CÁC MODULE CẢM BIẾN I2C (BÊN TRÁI) KÈM TỤ 104 & CHÂN CẤU HÌNH -->
+            <!-- 3. CÁC MODULE CẢM BIẾN I2C (BÊN TRÁI) KÈM TRỞ KÉO 4.7kΩ & TỤ 104 -->
             <!-- =================================================================== -->
             <!-- MPU6050 (0x68) -->
-            <g transform="translate(40, 200)">
-                <rect width="230" height="135" rx="8" fill="url(#grad-module)" stroke="#10b981" stroke-width="2"/>
-                <text x="115" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">IMU MPU6050 (0x68)</text>
-                <text x="115" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Gyro ±500°/s | Accel ±4g (DLPF 98Hz)</text>
-                <rect x="15" y="55" width="200" height="15" rx="3" fill="#b45309"/><text x="115" y="66" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
-                <!-- Pinout -->
-                <rect x="12" y="80" width="35" height="18" rx="2" fill="#f59e0b"/><text x="29" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">VCC</text>
-                <rect x="52" y="80" width="35" height="18" rx="2" fill="#475569"/><text x="69" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-                <rect x="92" y="80" width="35" height="18" rx="2" fill="#10b981"/><text x="109" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SDA</text>
-                <rect x="132" y="80" width="35" height="18" rx="2" fill="#06b6d4"/><text x="149" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SCL</text>
-                <rect x="172" y="80" width="45" height="18" rx="2" fill="#9333ea"/><text x="194" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">AD0->GND</text>
-                <text x="115" y="120" font-size="9" fill="#a7f3d0" text-anchor="middle">AD0 nối GND -> Cố định Addr 0x68</text>
+            <g transform="translate(40, 220)">
+                <rect width="250" height="145" rx="8" fill="url(#grad-module)" stroke="#10b981" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">IMU MPU6050 (0x68)</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Gyro ±500°/s | Accel ±4g (DLPF 98Hz)</text>
+                <rect x="15" y="55" width="220" height="16" rx="3" fill="#b45309"/><text x="125" y="67" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+                <!-- Pinout Pads -->
+                <rect x="15" y="82" width="38" height="20" rx="2" fill="#f59e0b"/><text x="34" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">VCC</text>
+                <rect x="58" y="82" width="38" height="20" rx="2" fill="#475569"/><text x="77" y="96" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="101" y="82" width="38" height="20" rx="2" fill="#10b981"/><text x="120" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">SDA</text>
+                <rect x="144" y="82" width="38" height="20" rx="2" fill="#06b6d4"/><text x="163" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">SCL</text>
+                <rect x="187" y="82" width="48" height="20" rx="2" fill="#9333ea"/><text x="211" y="96" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">AD0->0</text>
+                <text x="125" y="125" font-size="9" fill="#a7f3d0" text-anchor="middle">AD0 nối GND $\rightarrow$ Cố định Địa chỉ 0x68</text>
             </g>
 
             <!-- HMC5883L / QMC5883L (0x1E / 0x0D) -->
-            <g transform="translate(40, 360)">
-                <rect width="230" height="135" rx="8" fill="url(#grad-module)" stroke="#06b6d4" stroke-width="2"/>
-                <text x="115" y="24" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle">MAGNETOMETER (0x1E/0x0D)</text>
-                <text x="115" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">HMC5883L thật hoặc QMC5883L clone</text>
-                <rect x="15" y="55" width="200" height="15" rx="3" fill="#b45309"/><text x="115" y="66" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
-                <!-- Pinout -->
-                <rect x="15" y="80" width="40" height="18" rx="2" fill="#f59e0b"/><text x="35" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">VCC</text>
-                <rect x="65" y="80" width="40" height="18" rx="2" fill="#475569"/><text x="85" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-                <rect x="115" y="80" width="40" height="18" rx="2" fill="#10b981"/><text x="135" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SDA</text>
-                <rect x="165" y="80" width="40" height="18" rx="2" fill="#06b6d4"/><text x="185" y="93" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SCL</text>
-                <text x="115" y="120" font-size="9" fill="#7dd3fc" text-anchor="middle">Đặt trên trụ nâng chống nhiễu từ trường</text>
+            <g transform="translate(40, 395)">
+                <rect width="250" height="145" rx="8" fill="url(#grad-module)" stroke="#06b6d4" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle">MAGNETOMETER (0x1E/0x0D)</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">HMC5883L thật hoặc QMC5883L clone</text>
+                <rect x="15" y="55" width="220" height="16" rx="3" fill="#b45309"/><text x="125" y="67" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+                <!-- Pinout Pads -->
+                <rect x="20" y="82" width="45" height="20" rx="2" fill="#f59e0b"/><text x="42" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">VCC</text>
+                <rect x="75" y="82" width="45" height="20" rx="2" fill="#475569"/><text x="97" y="96" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="130" y="82" width="45" height="20" rx="2" fill="#10b981"/><text x="152" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">SDA</text>
+                <rect x="185" y="82" width="45" height="20" rx="2" fill="#06b6d4"/><text x="207" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">SCL</text>
+                <text x="125" y="125" font-size="9" fill="#7dd3fc" text-anchor="middle">Gắn trên trụ nâng 10-15cm chống nhiễu từ PDB</text>
             </g>
 
             <!-- BMP280 BAROMETER (0x76) -->
-            <g transform="translate(40, 520)">
-                <rect width="230" height="145" rx="8" fill="url(#grad-module)" stroke="#a855f7" stroke-width="2"/>
-                <text x="115" y="24" font-size="13" font-weight="bold" fill="#c084fc" text-anchor="middle">BAROMETER BMP280 (0x76)</text>
-                <text x="115" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Đo áp suất khí quyển & độ cao</text>
-                <rect x="15" y="55" width="200" height="15" rx="3" fill="#b45309"/><text x="115" y="66" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
-                <!-- Pinout -->
-                <rect x="10" y="80" width="30" height="18" rx="2" fill="#f59e0b"/><text x="25" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">VCC</text>
-                <rect x="45" y="80" width="30" height="18" rx="2" fill="#475569"/><text x="60" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-                <rect x="80" y="80" width="30" height="18" rx="2" fill="#10b981"/><text x="95" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">SDA</text>
-                <rect x="115" y="80" width="30" height="18" rx="2" fill="#06b6d4"/><text x="130" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">SCL</text>
-                <rect x="150" y="80" width="35" height="18" rx="2" fill="#9333ea"/><text x="167" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">SDO->0</text>
-                <rect x="190" y="80" width="35" height="18" rx="2" fill="#f59e0b"/><text x="207" y="93" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">CSB->1</text>
-                <text x="115" y="120" font-size="9" fill="#d8b4fe" text-anchor="middle">SDO->GND (0x76) | CSB->3.3V (I2C Mode)</text>
+            <g transform="translate(40, 570)">
+                <rect width="250" height="155" rx="8" fill="url(#grad-module)" stroke="#a855f7" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#c084fc" text-anchor="middle">BAROMETER BMP280 (0x76)</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Đo áp suất khí quyển & ước tính độ cao</text>
+                <rect x="15" y="55" width="220" height="16" rx="3" fill="#b45309"/><text x="125" y="67" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+                <!-- Pinout Pads -->
+                <rect x="12" y="82" width="34" height="20" rx="2" fill="#f59e0b"/><text x="29" y="96" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">VCC</text>
+                <rect x="50" y="82" width="34" height="20" rx="2" fill="#475569"/><text x="67" y="96" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="88" y="82" width="34" height="20" rx="2" fill="#10b981"/><text x="105" y="96" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">SDA</text>
+                <rect x="126" y="82" width="34" height="20" rx="2" fill="#06b6d4"/><text x="143" y="96" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">SCL</text>
+                <rect x="164" y="82" width="38" height="20" rx="2" fill="#9333ea"/><text x="183" y="96" font-size="7" fill="#fff" font-weight="bold" text-anchor="middle">SDO->0</text>
+                <rect x="206" y="82" width="38" height="20" rx="2" fill="#f59e0b"/><text x="225" y="96" font-size="7" fill="#000" font-weight="bold" text-anchor="middle">CSB->1</text>
+                <text x="125" y="130" font-size="9" fill="#d8b4fe" text-anchor="middle">SDO $\rightarrow$ GND (Addr 0x76) | CSB $\rightarrow$ 3.3V (I2C Mode)</text>
             </g>
 
-            <!-- 2 ĐIỆN TRỞ KÉO PULL-UP I2C (4.7kΩ) -->
-            <g transform="translate(320, 370)">
-                <rect width="140" height="90" rx="8" fill="#1e1b4b" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,2"/>
-                <text x="70" y="22" font-size="11" font-weight="bold" fill="#fbbf24" text-anchor="middle">2x TRỞ KÉO I2C</text>
-                <rect x="15" y="35" width="110" height="20" rx="3" fill="#78350f"/>
-                <text x="70" y="49" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">R1: 4.7kΩ (SDA - 3.3V)</text>
-                <rect x="15" y="60" width="110" height="20" rx="3" fill="#78350f"/>
-                <text x="70" y="74" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">R2: 4.7kΩ (SCL - 3.3V)</text>
-            </g>
-
-            <!-- =================================================================== -->
-            <!-- 4. MODULE GPS ATGM336H (BÊN PHẢI TRÊN) -->
-            <!-- =================================================================== -->
-            <g transform="translate(930, 40)">
-                <rect width="240" height="135" rx="8" fill="url(#grad-module)" stroke="#ec4899" stroke-width="2"/>
-                <text x="120" y="24" font-size="13" font-weight="bold" fill="#f472b6" text-anchor="middle">GPS ATGM336H (UART1)</text>
-                <text x="120" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">NMEA 0183 @ 9600 Baud (Pos Hold/RTH)</text>
-                <rect x="20" y="55" width="200" height="15" rx="3" fill="#b45309"/><text x="120" y="66" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
-                <!-- Pinout -->
-                <rect x="20" y="80" width="40" height="20" rx="3" fill="#f59e0b"/><text x="40" y="94" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">VCC</text>
-                <rect x="70" y="80" width="40" height="20" rx="3" fill="#475569"/><text x="90" y="94" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-                <rect x="120" y="80" width="45" height="20" rx="3" fill="#ec4899"/><text x="142" y="94" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">TXD</text>
-                <rect x="175" y="80" width="45" height="20" rx="3" fill="#3b82f6"/><text x="197" y="94" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">RXD</text>
-                <text x="120" y="122" font-size="9" fill="#fbcfe8" text-anchor="middle">TXD -> ESP32 RX1 (17) | RXD -> ESP32 TX1 (18)</text>
+            <!-- 2 ĐIỆN TRỞ KÉO PULL-UP I2C & BỘ LỌC KÉP RAIL 3.3V -->
+            <g transform="translate(330, 405)">
+                <rect width="170" height="135" rx="8" fill="#1e1b4b" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,2"/>
+                <text x="85" y="20" font-size="11" font-weight="bold" fill="#fbbf24" text-anchor="middle">TRỞ KÉO & LỌC 3.3V</text>
+                <rect x="10" y="28" width="150" height="19" rx="3" fill="#78350f"/>
+                <text x="85" y="41" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">R1: 4.7kΩ (SDA - 3.3V)</text>
+                <rect x="10" y="50" width="150" height="19" rx="3" fill="#78350f"/>
+                <text x="85" y="63" font-size="9" fill="#fef3c7" font-weight="bold" text-anchor="middle">R2: 4.7kΩ (SCL - 3.3V)</text>
+                <rect x="10" y="74" width="150" height="48" rx="4" fill="#92400e" stroke="#f59e0b"/>
+                <text x="85" y="90" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">⚡ LỌC KÉP RAIL 3.3V:</text>
+                <text x="85" y="104" font-size="8" fill="#fde68a" text-anchor="middle">Tụ Hóa 100µF + Tụ 104</text>
+                <text x="85" y="117" font-size="7" fill="#fca5a5" text-anchor="middle">(Giữ phẳng áp MPU/BMP)</text>
             </g>
 
             <!-- =================================================================== -->
-            <!-- 5. DRIVER PWM PCA9685 (BÊN PHẢI GIỮA) -->
+            <!-- 4. NGOẠI VI GIAO TIẾP & BÁO ĐỘNG (BÊN PHẢI) -->
             <!-- =================================================================== -->
-            <g transform="translate(930, 230)">
-                <rect width="280" height="420" rx="12" fill="url(#grad-module)" stroke="#8b5cf6" stroke-width="2"/>
-                <text x="140" y="28" font-size="15" font-weight="bold" fill="#a78bfa" text-anchor="middle">PCA9685 PWM DRIVER</text>
-                <text x="140" y="46" font-size="10" fill="#94a3b8" text-anchor="middle">16-Kênh 12-bit (I2C: 0x40, Tần số 50Hz)</text>
+            <!-- GPS ATGM336H (UART1) -->
+            <g transform="translate(1200, 40)">
+                <rect width="250" height="140" rx="8" fill="url(#grad-module)" stroke="#ec4899" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#f472b6" text-anchor="middle">GPS ATGM336H (UART1)</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">NMEA 0183 @ 9600 Baud (Pos Hold / RTH)</text>
+                <rect x="15" y="55" width="220" height="16" rx="3" fill="#b45309"/><text x="125" y="67" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+                <rect x="20" y="82" width="45" height="20" rx="3" fill="#f59e0b"/><text x="42" y="96" font-size="9" fill="#000" font-weight="bold" text-anchor="middle">VCC</text>
+                <rect x="75" y="82" width="45" height="20" rx="3" fill="#475569"/><text x="97" y="96" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="130" y="82" width="45" height="20" rx="3" fill="#ec4899"/><text x="152" y="96" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">TXD</text>
+                <rect x="185" y="82" width="45" height="20" rx="3" fill="#3b82f6"/><text x="207" y="96" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">RXD</text>
+                <text x="125" y="125" font-size="9" fill="#fbcfe8" text-anchor="middle">TXD $\rightarrow$ ESP32 RX1 (17) | RXD $\leftarrow$ ESP32 TX1 (18)</text>
+            </g>
 
-                <!-- Tụ 104 lọc nguồn PCA9685 -->
-                <rect x="25" y="60" width="230" height="16" rx="3" fill="#b45309"/><text x="140" y="72" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+            <!-- RC RECEIVER (ELRS / SBUS - UART2) -->
+            <g transform="translate(1200, 205)">
+                <rect width="250" height="130" rx="8" fill="url(#grad-module)" stroke="#60a5fa" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#93c5fd" text-anchor="middle">RC RECEIVER (ELRS / SBUS)</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Bộ thu sóng tay cầm điều khiển (UART2)</text>
+                <rect x="20" y="60" width="45" height="20" rx="3" fill="#ef4444"/><text x="42" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">5V</text>
+                <rect x="75" y="60" width="45" height="20" rx="3" fill="#475569"/><text x="97" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="130" y="60" width="45" height="20" rx="3" fill="#ec4899"/><text x="152" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">CH_TX</text>
+                <rect x="185" y="60" width="45" height="20" rx="3" fill="#3b82f6"/><text x="207" y="74" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">CH_RX</text>
+                <text x="125" y="105" font-size="9" fill="#bfdbfe" text-anchor="middle">TX $\rightarrow$ ESP32 RX2 (43) | RX $\leftarrow$ ESP32 TX2 (44)</text>
+            </g>
 
-                <!-- Cọc cấp nguồn V+ và Chân logic I2C -->
-                <rect x="15" y="88" width="45" height="20" rx="3" fill="#f59e0b"/><text x="37" y="102" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">VCC</text>
-                <rect x="65" y="88" width="45" height="20" rx="3" fill="#475569"/><text x="87" y="102" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-                <rect x="115" y="88" width="45" height="20" rx="3" fill="#10b981"/><text x="137" y="102" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SDA</text>
-                <rect x="165" y="88" width="45" height="20" rx="3" fill="#06b6d4"/><text x="187" y="102" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">SCL</text>
-                <rect x="215" y="88" width="50" height="20" rx="3" fill="#9333ea"/><text x="240" y="102" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">OE->GND</text>
+            <!-- ACTIVE BUZZER 5V & MẠCH TRANSISTOR NPN -->
+            <g transform="translate(1200, 360)">
+                <rect width="250" height="120" rx="8" fill="url(#grad-module)" stroke="#fb923c" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#fdba74" text-anchor="middle">CÒI BÁO ACTIVE BUZZER 5V</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">Kích hoạt qua Transistor NPN (S8050/2N2222)</text>
+                <rect x="20" y="55" width="210" height="20" rx="3" fill="#7c2d12"/>
+                <text x="125" y="69" font-size="9" fill="#ffedd5" font-weight="bold" text-anchor="middle">Cực B nối ESP32 GPIO 10 qua trở 1kΩ</text>
+                <text x="125" y="98" font-size="9" fill="#fed7aa" text-anchor="middle">Báo Arm, Cảnh báo Pin yếu & Tìm drone rơi</text>
+            </g>
 
-                <!-- Cọc V+ cấp 5V từ UBEC -->
-                <rect x="70" y="120" width="140" height="25" rx="4" fill="#ef4444"/>
-                <text x="140" y="136" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">V+ POWER (5.0V UBEC)</text>
-
-                <!-- 4 Kênh điều khiển ESC -->
-                <!-- CH0 (M1) -->
-                <rect x="15" y="160" width="250" height="48" rx="6" fill="#1e1b4b" stroke="#6366f1"/>
-                <text x="25" y="180" font-size="11" font-weight="bold" fill="#c7d2fe">CH 0</text>
-                <text x="70" y="180" font-size="10" fill="#a5b4fc">-> ESC 1 (M1 Trước Phải, CCW)</text>
-                <rect x="25" y="188" width="70" height="14" rx="2" fill="#c084fc"/><text x="60" y="199" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">PWM Signal</text>
-                <rect x="100" y="188" width="50" height="14" rx="2" fill="#475569"/><text x="125" y="199" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-
-                <!-- CH1 (M2) -->
-                <rect x="15" y="220" width="250" height="48" rx="6" fill="#1e1b4b" stroke="#6366f1"/>
-                <text x="25" y="240" font-size="11" font-weight="bold" fill="#c7d2fe">CH 1</text>
-                <text x="70" y="240" font-size="10" fill="#a5b4fc">-> ESC 2 (M2 Trước Trái, CW)</text>
-                <rect x="25" y="248" width="70" height="14" rx="2" fill="#c084fc"/><text x="60" y="259" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">PWM Signal</text>
-                <rect x="100" y="248" width="50" height="14" rx="2" fill="#475569"/><text x="125" y="259" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-
-                <!-- CH2 (M3) -->
-                <rect x="15" y="280" width="250" height="48" rx="6" fill="#1e1b4b" stroke="#6366f1"/>
-                <text x="25" y="300" font-size="11" font-weight="bold" fill="#c7d2fe">CH 2</text>
-                <text x="70" y="300" font-size="10" fill="#a5b4fc">-> ESC 3 (M3 Sau Phải, CW)</text>
-                <rect x="25" y="308" width="70" height="14" rx="2" fill="#c084fc"/><text x="60" y="319" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">PWM Signal</text>
-                <rect x="100" y="308" width="50" height="14" rx="2" fill="#475569"/><text x="125" y="319" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
-
-                <!-- CH3 (M4) -->
-                <rect x="15" y="340" width="250" height="48" rx="6" fill="#1e1b4b" stroke="#6366f1"/>
-                <text x="25" y="360" font-size="11" font-weight="bold" fill="#c7d2fe">CH 3</text>
-                <text x="70" y="360" font-size="10" fill="#a5b4fc">-> ESC 4 (M4 Sau Trái, CCW)</text>
-                <rect x="25" y="368" width="70" height="14" rx="2" fill="#c084fc"/><text x="60" y="379" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">PWM Signal</text>
-                <rect x="100" y="368" width="50" height="14" rx="2" fill="#475569"/><text x="125" y="379" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+            <!-- DRIVER PCA9685 (TÙY CHỌN MỞ RỘNG SERVO / GIMBAL) -->
+            <g transform="translate(1200, 505)">
+                <rect width="250" height="220" rx="10" fill="url(#grad-module)" stroke="#8b5cf6" stroke-width="2"/>
+                <text x="125" y="24" font-size="13" font-weight="bold" fill="#a78bfa" text-anchor="middle">PCA9685 PWM EXPANDER</text>
+                <text x="125" y="40" font-size="9" fill="#94a3b8" text-anchor="middle">16-Kênh 12-bit (I2C: 0x40, Tùy chọn Gimbal/ESC)</text>
+                <rect x="15" y="52" width="220" height="15" rx="3" fill="#b45309"/><text x="125" y="63" font-size="8" fill="#fef3c7" font-weight="bold" text-anchor="middle">Tụ 104 (0.1µF) lọc VCC-GND</text>
+                <!-- Pinout Pads -->
+                <rect x="15" y="75" width="40" height="18" rx="2" fill="#f59e0b"/><text x="35" y="88" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">VCC</text>
+                <rect x="60" y="75" width="40" height="18" rx="2" fill="#475569"/><text x="80" y="88" font-size="8" fill="#fff" font-weight="bold" text-anchor="middle">GND</text>
+                <rect x="105" y="75" width="40" height="18" rx="2" fill="#10b981"/><text x="125" y="88" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">SDA</text>
+                <rect x="150" y="75" width="40" height="18" rx="2" fill="#06b6d4"/><text x="170" y="88" font-size="8" fill="#000" font-weight="bold" text-anchor="middle">SCL</text>
+                <rect x="195" y="75" width="40" height="18" rx="2" fill="#9333ea"/><text x="215" y="88" font-size="7" fill="#fff" font-weight="bold" text-anchor="middle">OE->0</text>
+                <rect x="40" y="105" width="170" height="22" rx="4" fill="#ef4444"/><text x="125" y="120" font-size="9" fill="#fff" font-weight="bold" text-anchor="middle">V+ POWER (5.0V UBEC)</text>
+                <text x="125" y="150" font-size="9" fill="#c4b5fd" text-anchor="middle">Hỗ trợ ngõ ra CH0..CH3 cho 4 ESC</text>
+                <text x="125" y="170" font-size="9" fill="#94a3b8" text-anchor="middle">(Hoặc cắm trực tiếp vào ESP32 IO4..IO7)</text>
             </g>
 
             <!-- =================================================================== -->
-            <!-- 6. 4 ESC 30A VÀ 4 ĐỘNG CƠ A2212 1000KV (12 DÂY PHA CHI TIẾT) -->
+            <!-- 5. HỆ THỐNG 4 ESC 30A VÀ 4 ĐỘNG CƠ A2212 1000KV (12 DÂY PHA CHI TIẾT) -->
             <!-- =================================================================== -->
-
             <!-- MOTOR 2 & ESC 2 (TRƯỚC TRÁI - CW) -->
-            <g transform="translate(40, 720)">
-                <!-- ESC 2 -->
-                <rect width="280" height="110" rx="8" fill="url(#grad-esc)" stroke="#3b82f6" stroke-width="2"/>
-                <text x="140" y="24" font-size="13" font-weight="bold" fill="#60a5fa" text-anchor="middle">ESC 2 (30A) — TRƯỚC TRÁI</text>
-                <text x="140" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM CH1 | Nguồn PDB 11.1V</text>
-                <rect x="15" y="55" width="250" height="20" rx="3" fill="#7f1d1d"/>
-                <text x="140" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ giữ Signal + GND)</text>
-                <circle cx="30" cy="95" r="5" fill="#dc2626"/><text x="30" y="105" font-size="7" fill="#fff">V+</text>
-                <circle cx="50" cy="95" r="5" fill="#475569"/><text x="50" y="105" font-size="7" fill="#fff">GND</text>
+            <g transform="translate(40, 860)">
+                <rect width="380" height="110" rx="8" fill="url(#grad-esc)" stroke="#3b82f6" stroke-width="2"/>
+                <text x="190" y="24" font-size="13" font-weight="bold" fill="#60a5fa" text-anchor="middle">ESC 2 (30A) — TRƯỚC TRÁI (FRONT-LEFT)</text>
+                <text x="190" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM từ ESP32 GPIO 5 (hoặc PCA CH1) | Nguồn PDB 11.1V</text>
+                <rect x="20" y="55" width="340" height="20" rx="3" fill="#7f1d1d"/>
+                <text x="190" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ dùng Signal PWM + GND Mass)</text>
+                <!-- Terminal Pads -->
+                <circle cx="40" cy="95" r="5" fill="#dc2626"/><text x="40" y="105" font-size="7" fill="#fff">V+</text>
+                <circle cx="65" cy="95" r="5" fill="#475569"/><text x="65" y="105" font-size="7" fill="#fff">GND</text>
+                <circle cx="310" cy="95" r="5" fill="#c084fc"/><text x="310" y="105" font-size="7" fill="#000">PWM</text>
 
-                <!-- Động cơ A2212 Motor 2 (CW) -->
-                <g transform="translate(0, 130)">
-                    <rect width="280" height="90" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
-                    <text x="140" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M2 — CW (QUAY THUẬN)</text>
-                    <text x="140" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045R (Đảo chiều)</text>
-                    <text x="140" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">Đổi chiều quay: Hoán đổi 2 trong 3 dây pha A-B-C</text>
+                <!-- Động cơ Motor 2 (CW) -->
+                <g transform="translate(0, 140)">
+                    <rect width="380" height="95" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
+                    <text x="190" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M2 — CW (QUAY THUẬN CHIỀU KIM ĐỒNG HỒ)</text>
+                    <text x="190" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045R (Đảo chiều)</text>
+                    <text x="190" y="68" font-size="9" fill="#fde047" text-anchor="middle">⚡ ĐẢO PHA A-B: Nối Pha U $\rightarrow$ B, Pha V $\rightarrow$ A, Pha W $\rightarrow$ C</text>
                 </g>
             </g>
 
             <!-- MOTOR 1 & ESC 1 (TRƯỚC PHẢI - CCW) -->
-            <g transform="translate(410, 720)">
-                <!-- ESC 1 -->
-                <rect width="280" height="110" rx="8" fill="url(#grad-esc)" stroke="#10b981" stroke-width="2"/>
-                <text x="140" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ESC 1 (30A) — TRƯỚC PHẢI</text>
-                <text x="140" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM CH0 | Nguồn PDB 11.1V</text>
-                <rect x="15" y="55" width="250" height="20" rx="3" fill="#1e3a8a"/>
-                <text x="140" y="69" font-size="9" fill="#93c5fd" font-weight="bold" text-anchor="middle">DÙNG BEC 5V NÀY (HOẶC DÙNG UBEC RỜI)</text>
-                <circle cx="30" cy="95" r="5" fill="#dc2626"/><text x="30" y="105" font-size="7" fill="#fff">V+</text>
-                <circle cx="50" cy="95" r="5" fill="#475569"/><text x="50" y="105" font-size="7" fill="#fff">GND</text>
+            <g transform="translate(470, 860)">
+                <rect width="380" height="110" rx="8" fill="url(#grad-esc)" stroke="#10b981" stroke-width="2"/>
+                <text x="190" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ESC 1 (30A) — TRƯỚC PHẢI (FRONT-RIGHT)</text>
+                <text x="190" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM từ ESP32 GPIO 4 (hoặc PCA CH0) | Nguồn PDB 11.1V</text>
+                <rect x="20" y="55" width="340" height="20" rx="3" fill="#7f1d1d"/>
+                <text x="190" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Đã có UBEC 5V/3A nuôi toàn hệ thống)</text>
+                <!-- Terminal Pads -->
+                <circle cx="40" cy="95" r="5" fill="#dc2626"/><text x="40" y="105" font-size="7" fill="#fff">V+</text>
+                <circle cx="65" cy="95" r="5" fill="#475569"/><text x="65" y="105" font-size="7" fill="#fff">GND</text>
+                <circle cx="310" cy="95" r="5" fill="#c084fc"/><text x="310" y="105" font-size="7" fill="#000">PWM</text>
 
-                <!-- Động cơ A2212 Motor 1 (CCW) -->
-                <g transform="translate(0, 130)">
-                    <rect width="280" height="90" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
-                    <text x="140" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M1 — CCW (QUAY NGƯỢC)</text>
-                    <text x="140" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045 Tiêu chuẩn</text>
-                    <text x="140" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">3 Dây pha nối thẳng: Pha U -> A, V -> B, W -> C</text>
+                <!-- Động cơ Motor 1 (CCW) -->
+                <g transform="translate(0, 140)">
+                    <rect width="380" height="95" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
+                    <text x="190" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M1 — CCW (QUAY NGƯỢC CHIỀU KIM ĐỒNG HỒ)</text>
+                    <text x="190" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045 Tiêu chuẩn</text>
+                    <text x="190" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">3 Dây pha nối thẳng: Pha U $\rightarrow$ A, Pha V $\rightarrow$ B, Pha W $\rightarrow$ C</text>
                 </g>
             </g>
 
             <!-- MOTOR 4 & ESC 4 (SAU TRÁI - CCW) -->
-            <g transform="translate(780, 720)">
-                <!-- ESC 4 -->
-                <rect width="280" height="110" rx="8" fill="url(#grad-esc)" stroke="#10b981" stroke-width="2"/>
-                <text x="140" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ESC 4 (30A) — SAU TRÁI</text>
-                <text x="140" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM CH3 | Nguồn PDB 11.1V</text>
-                <rect x="15" y="55" width="250" height="20" rx="3" fill="#7f1d1d"/>
-                <text x="140" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ giữ Signal + GND)</text>
-                <circle cx="30" cy="95" r="5" fill="#dc2626"/><text x="30" y="105" font-size="7" fill="#fff">V+</text>
-                <circle cx="50" cy="95" r="5" fill="#475569"/><text x="50" y="105" font-size="7" fill="#fff">GND</text>
+            <g transform="translate(900, 860)">
+                <rect width="380" height="110" rx="8" fill="url(#grad-esc)" stroke="#10b981" stroke-width="2"/>
+                <text x="190" y="24" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ESC 4 (30A) — SAU TRÁI (REAR-LEFT)</text>
+                <text x="190" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM từ ESP32 GPIO 7 (hoặc PCA CH3) | Nguồn PDB 11.1V</text>
+                <rect x="20" y="55" width="340" height="20" rx="3" fill="#7f1d1d"/>
+                <text x="190" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ giữ Signal + GND)</text>
+                <!-- Terminal Pads -->
+                <circle cx="40" cy="95" r="5" fill="#dc2626"/><text x="40" y="105" font-size="7" fill="#fff">V+</text>
+                <circle cx="65" cy="95" r="5" fill="#475569"/><text x="65" y="105" font-size="7" fill="#fff">GND</text>
+                <circle cx="310" cy="95" r="5" fill="#c084fc"/><text x="310" y="105" font-size="7" fill="#000">PWM</text>
 
-                <!-- Động cơ A2212 Motor 4 (CCW) -->
-                <g transform="translate(0, 130)">
-                    <rect width="280" height="90" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
-                    <text x="140" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M4 — CCW (QUAY NGƯỢC)</text>
-                    <text x="140" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045 Tiêu chuẩn</text>
-                    <text x="140" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">3 Dây pha nối thẳng: Pha U -> A, V -> B, W -> C</text>
+                <!-- Động cơ Motor 4 (CCW) -->
+                <g transform="translate(0, 140)">
+                    <rect width="380" height="95" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
+                    <text x="190" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M4 — CCW (QUAY NGƯỢC CHIỀU KIM ĐỒNG HỒ)</text>
+                    <text x="190" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045 Tiêu chuẩn</text>
+                    <text x="190" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">3 Dây pha nối thẳng: Pha U $\rightarrow$ A, Pha V $\rightarrow$ B, Pha W $\rightarrow$ C</text>
                 </g>
             </g>
 
             <!-- MOTOR 3 & ESC 3 (SAU PHẢI - CW) -->
-            <g transform="translate(1150, 720)">
-                <!-- ESC 3 -->
-                <rect width="280" height="110" rx="8" fill="url(#grad-esc)" stroke="#3b82f6" stroke-width="2"/>
-                <text x="140" y="24" font-size="13" font-weight="bold" fill="#60a5fa" text-anchor="middle">ESC 3 (30A) — SAU PHẢI</text>
-                <text x="140" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM CH2 | Nguồn PDB 11.1V</text>
-                <rect x="15" y="55" width="250" height="20" rx="3" fill="#7f1d1d"/>
-                <text x="140" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ giữ Signal + GND)</text>
-                <circle cx="30" cy="95" r="5" fill="#dc2626"/><text x="30" y="105" font-size="7" fill="#fff">V+</text>
-                <circle cx="50" cy="95" r="5" fill="#475569"/><text x="50" y="105" font-size="7" fill="#fff">GND</text>
+            <g transform="translate(1330, 860)">
+                <rect width="380" height="110" rx="8" fill="url(#grad-esc)" stroke="#3b82f6" stroke-width="2"/>
+                <text x="190" y="24" font-size="13" font-weight="bold" fill="#60a5fa" text-anchor="middle">ESC 3 (30A) — SAU PHẢI (REAR-RIGHT)</text>
+                <text x="190" y="42" font-size="10" fill="#94a3b8" text-anchor="middle">Nhận PWM từ ESP32 GPIO 6 (hoặc PCA CH2) | Nguồn PDB 11.1V</text>
+                <rect x="20" y="55" width="340" height="20" rx="3" fill="#7f1d1d"/>
+                <text x="190" y="69" font-size="9" fill="#fca5a5" font-weight="bold" text-anchor="middle">CẮT DÂY ĐỎ 5V BEC! (Chỉ giữ Signal + GND)</text>
+                <!-- Terminal Pads -->
+                <circle cx="40" cy="95" r="5" fill="#dc2626"/><text x="40" y="105" font-size="7" fill="#fff">V+</text>
+                <circle cx="65" cy="95" r="5" fill="#475569"/><text x="65" y="105" font-size="7" fill="#fff">GND</text>
+                <circle cx="310" cy="95" r="5" fill="#c084fc"/><text x="310" y="105" font-size="7" fill="#000">PWM</text>
 
-                <!-- Động cơ A2212 Motor 3 (CW) -->
-                <g transform="translate(0, 130)">
-                    <rect width="280" height="90" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
-                    <text x="140" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M3 — CW (QUAY THUẬN)</text>
-                    <text x="140" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045R (Đảo chiều)</text>
-                    <text x="140" y="68" font-size="9" fill="#cbd5e1" text-anchor="middle">Đổi chiều quay: Hoán đổi 2 trong 3 dây pha A-B-C</text>
+                <!-- Động cơ Motor 3 (CW) -->
+                <g transform="translate(0, 140)">
+                    <rect width="380" height="95" rx="8" fill="url(#grad-motor)" stroke="#10b981" stroke-width="2"/>
+                    <text x="190" y="26" font-size="13" font-weight="bold" fill="#34d399" text-anchor="middle">ĐỘNG CƠ M3 — CW (QUAY THUẬN CHIỀU KIM ĐỒNG HỒ)</text>
+                    <text x="190" y="46" font-size="10" fill="#a7f3d0" text-anchor="middle">A2212 1000KV | Cánh 1045R (Đảo chiều)</text>
+                    <text x="190" y="68" font-size="9" fill="#fde047" text-anchor="middle">⚡ ĐẢO PHA A-B: Nối Pha U $\rightarrow$ B, Pha V $\rightarrow$ A, Pha W $\rightarrow$ C</text>
                 </g>
             </g>
 
             <!-- =================================================================== -->
-            <!-- 7. TẬP HỢP TOÀN BỘ ĐƯỜNG DÂY NỐI (WIRE TRACES) THEO NHÓM -->
+            <!-- 6. TOÀN BỘ CÁC TUYẾN ĐƯỜNG DÂY NỐI (EXACT PHYSICAL WIRE TRACES) -->
             <!-- =================================================================== -->
 
-            <!-- === NHÓM 1: NGUỒN 11.1V VÀ 12 DÂY PHA ĐỘNG CƠ (grp-power) === -->
-            <!-- Pin -> PDB -->
-            <path class="wire grp-power" d="M 220 105 L 280 105" stroke="#dc2626" stroke-width="5" fill="none"/>
-            <path class="wire grp-power" d="M 205 105 L 280 105" stroke="#475569" stroke-width="5" fill="none"/>
-            <!-- PDB -> UBEC (11.1V & GND) -->
-            <path class="wire grp-power" d="M 530 80 L 590 80" stroke="#dc2626" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 530 95 L 590 95" stroke="#475569" stroke-width="3" fill="none"/>
+            <!-- === NHÓM 1: NGUỒN 11.1V VÀ 12 DÂY PHA MOTOR (grp-power) === -->
+            <!-- Pin LiPo (+) -> PDB (+) -->
+            <path class="wire grp-power" d="M 200 110 L 290 95" stroke="#dc2626" stroke-width="5" fill="none"/>
+            <!-- Pin LiPo (-) -> PDB (-) -->
+            <path class="wire grp-power" d="M 170 110 L 290 120" stroke="#475569" stroke-width="5" fill="none"/>
 
-            <!-- PDB -> 4 ESC (8 Dây nguồn to 14-16AWG) -->
-            <path class="wire grp-power" d="M 310 140 L 310 700 L 70 700 L 70 815" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 330 140 L 330 690 L 90 690 L 90 815" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <!-- PDB -> UBEC 11.1V In & GND In -->
+            <path class="wire grp-power" d="M 570 65 L 850 65" stroke="#dc2626" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 570 85 L 850 85" stroke="#475569" stroke-width="3" fill="none"/>
 
-            <path class="wire grp-power" d="M 360 140 L 360 700 L 440 700 L 440 815" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 380 140 L 380 690 L 460 690 L 460 815" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <!-- PDB -> Cầu phân áp VBAT 10kΩ -->
+            <path class="wire grp-power" d="M 570 50 L 620 50" stroke="#dc2626" stroke-width="2.5" fill="none"/>
+            <path class="wire grp-power" d="M 570 100 L 620 100" stroke="#475569" stroke-width="2.5" fill="none"/>
 
-            <path class="wire grp-power" d="M 410 140 L 410 700 L 810 700 L 810 815" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 430 140 L 430 690 L 830 690 L 830 815" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <!-- PDB -> 4 ESC (8 Dây nguồn công suất to 14-16AWG) -->
+            <!-- ESC 2 (Front-Left) -->
+            <path class="wire grp-power" d="M 395 137 L 395 840 L 80 840 L 80 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-power" d="M 413 137 L 413 830 L 105 830 L 105 955" stroke="#475569" stroke-width="3.5" fill="none"/>
 
-            <path class="wire grp-power" d="M 460 140 L 460 700 L 1180 700 L 1180 815" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 480 140 L 480 690 L 1200 690 L 1200 815" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <!-- ESC 1 (Front-Right) -->
+            <path class="wire grp-power" d="M 340 137 L 340 840 L 510 840 L 510 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-power" d="M 358 137 L 358 830 L 535 830 L 535 955" stroke="#475569" stroke-width="3.5" fill="none"/>
 
-            <!-- 12 DÂY PHA ĐỘNG CƠ (3 DÂY CHO MỖI MOTOR) -->
-            <!-- ESC2 -> Motor 2 (Pha A, B, C) -->
-            <path class="wire grp-power" d="M 120 830 L 120 850" stroke="#38bdf8" stroke-width="3" fill="none"/><text x="110" y="842" font-size="8" fill="#38bdf8">Pha A</text>
-            <path class="wire grp-power" d="M 180 830 L 180 850" stroke="#fbbf24" stroke-width="3" fill="none"/><text x="170" y="842" font-size="8" fill="#fbbf24">Pha B</text>
-            <path class="wire grp-power" d="M 240 830 L 240 850" stroke="#34d399" stroke-width="3" fill="none"/><text x="230" y="842" font-size="8" fill="#34d399">Pha C</text>
+            <!-- ESC 4 (Rear-Left) -->
+            <path class="wire grp-power" d="M 505 137 L 505 840 L 940 840 L 940 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-power" d="M 523 137 L 523 830 L 965 830 L 965 955" stroke="#475569" stroke-width="3.5" fill="none"/>
 
-            <!-- ESC1 -> Motor 1 (Pha A, B, C) -->
-            <path class="wire grp-power" d="M 490 830 L 490 850" stroke="#38bdf8" stroke-width="3" fill="none"/><text x="480" y="842" font-size="8" fill="#38bdf8">Pha A</text>
-            <path class="wire grp-power" d="M 550 830 L 550 850" stroke="#fbbf24" stroke-width="3" fill="none"/><text x="540" y="842" font-size="8" fill="#fbbf24">Pha B</text>
-            <path class="wire grp-power" d="M 610 830 L 610 850" stroke="#34d399" stroke-width="3" fill="none"/><text x="600" y="842" font-size="8" fill="#34d399">Pha C</text>
+            <!-- ESC 3 (Rear-Right) -->
+            <path class="wire grp-power" d="M 450 137 L 450 840 L 1370 840 L 1370 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-power" d="M 468 137 L 468 830 L 1395 830 L 1395 955" stroke="#475569" stroke-width="3.5" fill="none"/>
 
-            <!-- ESC4 -> Motor 4 (Pha A, B, C) -->
-            <path class="wire grp-power" d="M 860 830 L 860 850" stroke="#38bdf8" stroke-width="3" fill="none"/><text x="850" y="842" font-size="8" fill="#38bdf8">Pha A</text>
-            <path class="wire grp-power" d="M 920 830 L 920 850" stroke="#fbbf24" stroke-width="3" fill="none"/><text x="910" y="842" font-size="8" fill="#fbbf24">Pha B</text>
-            <path class="wire grp-power" d="M 980 830 L 980 850" stroke="#34d399" stroke-width="3" fill="none"/><text x="970" y="842" font-size="8" fill="#34d399">Pha C</text>
+            <!-- 12 DÂY PHA ĐỘNG CƠ NỐI TỪ ESC XUỐNG MOTOR -->
+            <!-- ESC 2 -> Motor 2 (Pha A, B, C ĐẢO PHA A-B CHO MOTOR QUAY CW) -->
+            <path class="wire grp-power" d="M 120 970 L 120 1000 L 220 1000 L 220 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 220 970 L 220 990 L 120 990 L 120 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 320 970 L 320 1020" stroke="#34d399" stroke-width="3" fill="none"/>
 
-            <!-- ESC3 -> Motor 3 (Pha A, B, C) -->
-            <path class="wire grp-power" d="M 1230 830 L 1230 850" stroke="#38bdf8" stroke-width="3" fill="none"/><text x="1220" y="842" font-size="8" fill="#38bdf8">Pha A</text>
-            <path class="wire grp-power" d="M 1290 830 L 1290 850" stroke="#fbbf24" stroke-width="3" fill="none"/><text x="1280" y="842" font-size="8" fill="#fbbf24">Pha B</text>
-            <path class="wire grp-power" d="M 1350 830 L 1350 850" stroke="#34d399" stroke-width="3" fill="none"/><text x="1340" y="842" font-size="8" fill="#34d399">Pha C</text>
+            <!-- ESC 1 -> Motor 1 (Pha A, B, C NỐI THẲNG CHO MOTOR QUAY CCW) -->
+            <path class="wire grp-power" d="M 550 970 L 550 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 650 970 L 650 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 750 970 L 750 1020" stroke="#34d399" stroke-width="3" fill="none"/>
 
+            <!-- ESC 4 -> Motor 4 (Pha A, B, C NỐI THẲNG CHO MOTOR QUAY CCW) -->
+            <path class="wire grp-power" d="M 980 970 L 980 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 1080 970 L 1080 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 1180 970 L 1180 1020" stroke="#34d399" stroke-width="3" fill="none"/>
 
-            <!-- === NHÓM 2: NGUỒN 5V & 3.3V LOGIC (grp-logic-power) === -->
-            <!-- UBEC 5V -> ESP32-S3 VIN & PCA9685 V+ -->
-            <path class="wire grp-logic-power" d="M 630 125 L 630 170 L 500 170 L 500 335 L 528 335" stroke="#ef4444" stroke-width="3" fill="none"/>
-            <path class="wire grp-logic-power" d="M 665 125 L 665 185 L 485 185 L 485 405 L 528 405" stroke="#475569" stroke-width="3" fill="none"/>
-            <path class="wire grp-logic-power" d="M 630 170 L 890 170 L 890 365 L 1000 365" stroke="#ef4444" stroke-width="3" fill="none"/>
-
-            <!-- ESP32-S3 3V3 -> Rail 3.3V nuôi MPU, HMC, BMP, PCA, GPS -->
-            <path class="wire grp-logic-power" d="M 528 370 L 300 370 L 300 290 L 70 290" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 300 370 L 300 450 L 75 450" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 300 450 L 300 610 L 65 610" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 528 370 L 460 370 L 460 400 L 400 400" stroke="#f59e0b" stroke-width="2" fill="none"/> <!-- Cấp lên trở kéo -->
-            <path class="wire grp-logic-power" d="M 528 370 L 500 370 L 500 200 L 910 200 L 910 328 L 945 328" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 910 200 L 910 130 L 950 130" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
-
-            <!-- Common GND Rail cho tất cả cảm biến & PCA9685 -->
-            <path class="wire grp-logic-power" d="M 528 405 L 310 405 L 310 298 L 110 298" stroke="#475569" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 310 405 L 310 458 L 125 458" stroke="#475569" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 310 458 L 310 618 L 100 618" stroke="#475569" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 777 450 L 920 450 L 920 328 L 995 328" stroke="#475569" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 920 200 L 920 130 L 1000 130" stroke="#475569" stroke-width="2.5" fill="none"/>
+            <!-- ESC 3 -> Motor 3 (Pha A, B, C ĐẢO PHA A-B CHO MOTOR QUAY CW) -->
+            <path class="wire grp-power" d="M 1410 970 L 1410 1000 L 1510 1000 L 1510 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 1510 970 L 1510 990 L 1410 990 L 1410 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
+            <path class="wire grp-power" d="M 1610 970 L 1610 1020" stroke="#34d399" stroke-width="3" fill="none"/>
 
 
-            <!-- === NHÓM 3: BUS I2C (SDA, SCL + TRỞ KÉO) (grp-i2c) === -->
-            <!-- SDA (GPIO 8) -->
-            <path class="wire grp-i2c" d="M 528 450 L 330 450 L 330 305 L 150 305" stroke="#10b981" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 330 450 L 330 465 L 175 465" stroke="#10b981" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 330 465 L 330 625 L 135 625" stroke="#10b981" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 330 450 L 345 450 L 345 405" stroke="#10b981" stroke-width="2" fill="none"/> <!-- Nối vào trở R1 -->
-            <path class="wire grp-i2c" d="M 330 450 L 330 670 L 900 670 L 900 328 L 1045 328" stroke="#10b981" stroke-width="2.5" fill="none"/>
+            <!-- === NHÓM 2: NGUỒN 5.0V UBEC, 3.3V LDO & COMMON GROUND (grp-logic-power) === -->
+            <!-- UBEC 5V Out -> ESP32-S3 Chân 5V/VIN & PCA9685 V+ & Còi 5V -->
+            <path class="wire grp-logic-power" d="M 895 130 L 895 180 L 660 180 L 660 345 L 690 345" stroke="#ef4444" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-logic-power" d="M 895 180 L 1180 180 L 1180 625 L 1240 625" stroke="#ef4444" stroke-width="3" fill="none"/>
+            <path class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 275 L 1220 275" stroke="#ef4444" stroke-width="2.5" fill="none"/> <!-- 5V nuôi RC -->
+            <path class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 420 L 1220 420" stroke="#ef4444" stroke-width="2.5" fill="none"/> <!-- 5V nuôi Buzzer -->
 
-            <!-- SCL (GPIO 9) -->
-            <path class="wire grp-i2c" d="M 528 485 L 350 485 L 350 312 L 190 312" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 350 485 L 350 472 L 225 472" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 350 472 L 350 632 L 170 632" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-i2c" d="M 350 485 L 365 485 L 365 430" stroke="#06b6d4" stroke-width="2" fill="none"/> <!-- Nối vào trở R2 -->
-            <path class="wire grp-i2c" d="M 350 485 L 350 680 L 910 680 L 910 328 L 1095 328" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
+            <!-- Common Ground (GND Mass chung toàn hệ thống) -->
+            <path class="wire grp-logic-power" d="M 965 130 L 965 195 L 645 195 L 645 375 L 690 375" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <path class="wire grp-logic-power" d="M 645 195 L 320 195 L 320 312 L 98 312" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND MPU -->
+            <path class="wire grp-logic-power" d="M 320 312 L 320 487 L 115 487" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND HMC -->
+            <path class="wire grp-logic-power" d="M 320 487 L 320 662 L 90 662" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND BMP -->
+            <path class="wire grp-logic-power" d="M 965 195 L 1160 195 L 1160 132 L 1275 132" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND GPS -->
+            <path class="wire grp-logic-power" d="M 1160 195 L 1160 275 L 1275 275" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND RC -->
+            <path class="wire grp-logic-power" d="M 1160 275 L 1160 590 L 1260 590" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND PCA -->
 
-
-            <!-- === NHÓM 4: XUNG PWM TỪ PCA9685 RA 4 ESC (grp-pwm) === -->
-            <!-- CH0 -> ESC 1 (M1 Trước Phải, CCW) -->
-            <path class="wire grp-pwm" d="M 945 410 L 750 410 L 750 710 L 530 710 L 530 720" stroke="#c084fc" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-pwm" d="M 1020 410 L 760 410 L 760 715 L 550 715 L 550 720" stroke="#475569" stroke-width="2" fill="none"/>
-
-            <!-- CH1 -> ESC 2 (M2 Trước Trái, CW) -->
-            <path class="wire grp-pwm" d="M 945 470 L 740 470 L 740 710 L 160 710 L 160 720" stroke="#c084fc" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-pwm" d="M 1020 470 L 750 470 L 750 715 L 180 715 L 180 720" stroke="#475569" stroke-width="2" fill="none"/>
-
-            <!-- CH2 -> ESC 3 (M3 Sau Phải, CW) -->
-            <path class="wire grp-pwm" d="M 1195 530 L 1300 530 L 1300 720" stroke="#c084fc" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-pwm" d="M 1020 530 L 1280 530 L 1280 720" stroke="#475569" stroke-width="2" fill="none"/>
-
-            <!-- CH3 -> ESC 4 (M4 Sau Trái, CCW) -->
-            <path class="wire grp-pwm" d="M 1195 590 L 1050 590 L 1050 710 L 930 710 L 930 720" stroke="#c084fc" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-pwm" d="M 1020 590 L 1060 590 L 1060 715 L 950 715 L 950 720" stroke="#475569" stroke-width="2" fill="none"/>
+            <!-- ESP32-S3 3V3 VOUT -> Rail 3.3V cấp cho MPU, HMC, BMP, GPS, Trở kéo I2C -->
+            <path class="wire grp-logic-power" d="M 690 315 L 630 315 L 630 210 L 305 210 L 305 312 L 55 312" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 MPU -->
+            <path class="wire grp-logic-power" d="M 305 312 L 305 487 L 62 487" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 HMC -->
+            <path class="wire grp-logic-power" d="M 305 487 L 305 662 L 50 662" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 BMP -->
+            <path class="wire grp-logic-power" d="M 305 210 L 415 210 L 415 420" stroke="#f59e0b" stroke-width="2" fill="none"/> <!-- Cấp 3.3V lên 2 trở kéo -->
+            <path class="wire grp-logic-power" d="M 630 210 L 1140 210 L 1140 132 L 1220 132" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 GPS -->
+            <path class="wire grp-logic-power" d="M 1140 210 L 1140 590 L 1215 590" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 PCA Logic -->
 
 
-            <!-- === NHÓM 5: GPS UART1 (TX, RX) (grp-gps) === -->
-            <!-- GPS TXD -> ESP32 IO17 (RX1) -->
-            <path class="wire grp-gps" d="M 1072 140 L 1072 175 L 850 175 L 850 370 L 832 370" stroke="#ec4899" stroke-width="2.5" fill="none"/>
-            <!-- GPS RXD <- ESP32 IO18 (TX1) -->
-            <path class="wire grp-gps" d="M 1127 140 L 1127 190 L 865 190 L 865 405 L 832 405" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+            <!-- === NHÓM 3: BUS I2C CẢM BIẾN (SDA, SCL + TRỞ KÉO 4.7kΩ) (grp-i2c) === -->
+            <!-- SDA (ESP32-S3 GPIO 8) -->
+            <path class="wire grp-i2c" d="M 690 540 L 590 540 L 590 312 L 141 312" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA MPU -->
+            <path class="wire grp-i2c" d="M 590 312 L 590 487 L 170 487" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA HMC -->
+            <path class="wire grp-i2c" d="M 590 487 L 590 662 L 128 662" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA BMP -->
+            <path class="wire grp-i2c" d="M 590 540 L 455 540 L 455 515" stroke="#10b981" stroke-width="2" fill="none"/> <!-- Nối vào trở R1 4.7kΩ -->
+            <path class="wire grp-i2c" d="M 690 540 L 600 540 L 600 735 L 1170 735 L 1170 590 L 1305 590" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA PCA9685 -->
+
+            <!-- SCL (ESP32-S3 GPIO 9) -->
+            <path class="wire grp-i2c" d="M 690 570 L 575 570 L 575 312 L 184 312" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL MPU -->
+            <path class="wire grp-i2c" d="M 575 312 L 575 487 L 225 487" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL HMC -->
+            <path class="wire grp-i2c" d="M 575 487 L 575 662 L 166 662" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL BMP -->
+            <path class="wire grp-i2c" d="M 575 570 L 475 570 L 475 515" stroke="#06b6d4" stroke-width="2" fill="none"/> <!-- Nối vào trở R2 4.7kΩ -->
+            <path class="wire grp-i2c" d="M 690 570 L 585 570 L 585 750 L 1185 750 L 1185 590 L 1350 590" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL PCA9685 -->
 
 
-            <!-- === NHÓM 6: TỤ LỌC NHIỄU VÀ CÁC CHÂN CẤU HÌNH CỨNG (grp-noise) === -->
-            <!-- MPU6050 AD0 nối xuống GND -->
-            <path class="wire grp-noise" d="M 234 300 L 250 300 L 250 280 L 110 280" stroke="#9333ea" stroke-width="2" fill="none"/>
-            <!-- BMP280 SDO nối GND & CSB nối 3.3V -->
-            <path class="wire grp-noise" d="M 207 620 L 207 600 L 100 600" stroke="#9333ea" stroke-width="2" fill="none"/>
-            <path class="wire grp-noise" d="M 247 620 L 247 590 L 65 590" stroke="#f59e0b" stroke-width="2" fill="none"/>
-            <!-- PCA9685 OE nối GND -->
-            <path class="wire grp-noise" d="M 1170 328 L 1190 328 L 1190 310 L 995 310" stroke="#9333ea" stroke-width="2" fill="none"/>
+            <!-- === NHÓM 4: TUYẾN XUNG PWM ĐIỀU KHIỂN 4 ESC ĐỘNG CƠ (grp-motor-ctrl) === -->
+            <!-- GPIO 4 (PWM ESC 1 - Trước Phải M1 CCW) -->
+            <path class="wire grp-motor-ctrl" d="M 690 410 L 670 410 L 670 820 L 780 820 L 780 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <!-- GPIO 5 (PWM ESC 2 - Trước Trái M2 CW) -->
+            <path class="wire grp-motor-ctrl" d="M 690 440 L 660 440 L 660 820 L 350 820 L 350 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <!-- GPIO 6 (PWM ESC 3 - Sau Phải M3 CW) -->
+            <path class="wire grp-motor-ctrl" d="M 690 470 L 650 470 L 650 810 L 1640 810 L 1640 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <!-- GPIO 7 (PWM ESC 4 - Sau Trái M4 CCW) -->
+            <path class="wire grp-motor-ctrl" d="M 690 500 L 640 500 L 640 810 L 1210 810 L 1210 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+
+
+            <!-- === NHÓM 5: GIÁM SÁT PIN ADC, BUZZER & ĐÈN ARM LED (grp-adc-buzzer) === -->
+            <!-- Cầu phân áp VBAT Out -> ESP32-S3 GPIO 1 (ADC1_CH0) -->
+            <path class="wire grp-adc-buzzer" d="M 710 137 L 710 220 L 620 220 L 620 610 L 690 610" stroke="#a855f7" stroke-width="2.5" fill="none"/>
+            <!-- ESP32-S3 GPIO 10 -> Cực B Transistor Còi Buzzer 5V -->
+            <path class="wire grp-adc-buzzer" d="M 690 710 L 620 710 L 620 780 L 1150 780 L 1150 435 L 1220 435" stroke="#fb923c" stroke-width="2.5" fill="none"/>
+            <!-- ESP32-S3 GPIO 3 -> Đèn Arming LED Đỏ -->
+            <path class="wire grp-adc-buzzer" d="M 690 675 L 610 675 L 610 765 L 1130 765 L 1130 300 L 1200 300" stroke="#ef4444" stroke-width="2" fill="none"/>
+
+
+            <!-- === NHÓM 6: GPS UART1 & RC RECEIVER UART2 (grp-comms) === -->
+            <!-- GPS TXD -> ESP32-S3 GPIO 17 (U1RXD) -->
+            <path class="wire grp-comms" d="M 1330 132 L 1330 160 L 1120 160 L 1120 315 L 1045 315" stroke="#ec4899" stroke-width="2.5" fill="none"/>
+            <!-- GPS RXD <- ESP32-S3 GPIO 18 (U1TXD) -->
+            <path class="wire grp-comms" d="M 1385 132 L 1385 175 L 1135 175 L 1135 345 L 1045 345" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+
+            <!-- RC Receiver TX -> ESP32-S3 GPIO 43 (U2RXD) -->
+            <path class="wire grp-comms" d="M 1330 275 L 1330 250 L 1110 250 L 1110 385 L 1045 385" stroke="#ec4899" stroke-width="2.5" fill="none"/>
+            <!-- RC Receiver RX <- ESP32-S3 GPIO 44 (U2TXD) -->
+            <path class="wire grp-comms" d="M 1385 275 L 1385 260 L 1125 260 L 1125 415 L 1045 415" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+
+
+            <!-- === NHÓM 7: TỤ LỌC NHIỄU VÀ CHÂN CẤU HÌNH CỨNG (grp-cfg-noise) === -->
+            <!-- MPU6050 AD0 nối GND (Cố định Addr 0x68) -->
+            <path class="wire grp-cfg-noise" d="M 235 302 L 235 280 L 98 280 L 98 302" stroke="#9333ea" stroke-width="2" fill="none"/>
+            <!-- BMP280 SDO nối GND & CSB nối 3.3V (Addr 0x76 & I2C Mode) -->
+            <path class="wire grp-cfg-noise" d="M 202 652 L 202 630 L 90 630 L 90 652" stroke="#9333ea" stroke-width="2" fill="none"/>
+            <path class="wire grp-cfg-noise" d="M 244 652 L 244 620 L 50 620 L 50 652" stroke="#f59e0b" stroke-width="2" fill="none"/>
+            <!-- PCA9685 OE nối GND (Luôn Enable PWM) -->
+            <path class="wire grp-cfg-noise" d="M 1415 580 L 1415 560 L 1260 560 L 1260 580" stroke="#9333ea" stroke-width="2" fill="none"/>
 
         </svg>
     </div>
 
     <!-- =================================================================== -->
-    <!-- BẢNG TỔNG HỢP CHI TIẾT TỪNG SỢI DÂY (PHYSICAL WIRE INVENTORY) -->
+    <!-- BẢNG TỔNG HỢP CHI TIẾT TỪNG SỢI DÂY & BẢNG ÁNH XẠ CHÂN ESP32-S3 -->
     <!-- =================================================================== -->
     <div class="stats-grid">
-        <!-- Bảng 1: Động cơ & Nguồn động lực -->
+        <!-- Bảng 1: Quy hoạch 44 chân ESP32-S3 -->
         <div class="info-card">
-            <h3><span class="tag tag-red">ĐỘNG LỰC</span> 12 Dây Pha & 8 Dây Nguồn PDB</h3>
+            <h3><span class="tag tag-blue">ESP32-S3</span> Quy Hoạch Chân Chi Tiết (Full 44 Pins)</h3>
             <table>
                 <thead>
-                    <tr><th>Đường dây</th><th>Từ $\rightarrow$ Tới</th><th>Tiết diện</th><th>Chức năng</th></tr>
+                    <tr><th>Tên Pin</th><th>GPIO</th><th>Điện Áp</th><th>Thiết Bị Đích</th><th>Chức Năng</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><strong>Pin $\rightarrow$ PDB</strong></td><td>Pin LiPo 3S $\rightarrow$ PDB XT60</td><td>12-14 AWG</td><td>Cấp toàn bộ dòng 30-45A đỉnh</td></tr>
-                    <tr><td><strong>PDB $\rightarrow$ ESC 1..4</strong></td><td>4 Trạm hàn PDB $\rightarrow$ 4 ESC</td><td>14-16 AWG</td><td>4 Cặp dây Đỏ (+) / Đen (-) nuôi ESC</td></tr>
-                    <tr><td><strong>12 Dây Pha</strong></td><td>4 ESC $\rightarrow$ 4 Motor A2212</td><td>18 AWG Silicon</td><td>3 Dây pha xoay chiều U-V-W mỗi động cơ</td></tr>
-                    <tr><td><strong>Tụ 1000µF</strong></td><td>Mắc song song PDB (+ / -)</td><td>Chân tụ</td><td>Triệt xung điện áp Back-EMF động cơ</td></tr>
+                    <tr><td><strong>3V3 / VIN</strong></td><td>Power</td><td>3.3V / 5.0V</td><td>UBEC & Rail Cảm Biến</td><td>Nguồn nuôi chính</td></tr>
+                    <tr><td><strong>PWM 1..4</strong></td><td>GPIO 4, 5, 6, 7</td><td>3.3V</td><td>4 ESC 30A (M1..M4)</td><td>Xung Hardware PWM 50-400Hz</td></tr>
+                    <tr><td><strong>I2C Bus</strong></td><td>GPIO 8, 9</td><td>3.3V</td><td>MPU, HMC, BMP, PCA</td><td>SDA/SCL 400kHz + Trở kéo 4.7kΩ</td></tr>
+                    <tr><td><strong>VBAT ADC</strong></td><td>GPIO 1 (ADC1)</td><td>0–3.1V</td><td>Cầu phân áp 10k/2.2k</td><td>Đo áp Pin LiPo 3S cảnh báo</td></tr>
+                    <tr><td><strong>Buzzer</strong></td><td>GPIO 10</td><td>3.3V</td><td>Cực B Transistor NPN</td><td>Còi chíp 5V báo Arm/Lỗi</td></tr>
+                    <tr><td><strong>Arm LED</strong></td><td>GPIO 3</td><td>3.3V</td><td>Anode LED Đỏ (Qua trở)</td><td>Đèn báo Động cơ sẵn sàng</td></tr>
+                    <tr><td><strong>GPS UART1</strong></td><td>GPIO 17, 18</td><td>3.3V</td><td>GPS ATGM336H</td><td>RX1 đọc NMEA, TX1 cấu hình</td></tr>
+                    <tr><td><strong>RC UART2</strong></td><td>GPIO 43, 44</td><td>3.3V</td><td>Tay thu ELRS/SBUS</td><td>RX2 nhận kênh, TX2 Telemetry</td></tr>
+                    <tr><td><strong>CẤM DÙNG</strong></td><td>GPIO 33..37</td><td>-</td><td>Octal PSRAM / Flash</td><td>⛔ Bị khóa bởi phần cứng nội bộ</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bảng 2: Động lực & 12 Dây Pha -->
+        <div class="info-card">
+            <h3><span class="tag tag-red">ĐỘNG LỰC</span> 12 Dây Pha Motor & Nguồn PDB 11.1V</h3>
+            <table>
+                <thead>
+                    <tr><th>Đường Dây</th><th>Điểm Đầu $\rightarrow$ Điểm Cuối</th><th>Tiết Diện</th><th>Quy Chuẩn Kỹ Thuật</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Pin $\rightarrow$ PDB</strong></td><td>Pin LiPo 3S $\rightarrow$ Cọc PDB XT60</td><td>12–14 AWG</td><td>Chịu dòng xả 45A–60A đỉnh</td></tr>
+                    <tr><td><strong>PDB $\rightarrow$ ESC</strong></td><td>4 Trạm PDB $\rightarrow$ 4 ESC 30A</td><td>14–16 AWG</td><td>4 Cặp dây Đỏ (+)/Đen (-)</td></tr>
+                    <tr><td><strong>12 Dây Pha</strong></td><td>4 ESC $\rightarrow$ 4 Motor A2212</td><td>18 AWG Silicon</td><td>3 Dây pha xoay chiều U-V-W</td></tr>
+                    <tr><td><strong>Tụ 1000µF</strong></td><td>Mắc song song PDB (+ / -)</td><td>Low-ESR</td><td>Triệt xung Back-EMF động cơ</td></tr>
                 </tbody>
             </table>
             <div class="warn-alert">
-                <strong>Đảo chiều quay:</strong> Để đổi chiều quay M2, M3 thành CW (quay thuận), chỉ cần hoán đổi vị trí bất kỳ 2 trong 3 dây pha nối giữa ESC và Động cơ!
+                <strong>Đảo chiều quay:</strong> Để M2 và M3 quay CW (thuận chiều kim đồng hồ), chỉ cần <strong>hoán đổi vị trí 2 trong 3 dây pha (Pha U và Pha V)</strong> giữa ESC và Động cơ!
             </div>
         </div>
 
-        <!-- Bảng 2: Bus I2C & Trở kéo -->
+        <!-- Bảng 3: An Toàn & Phân Tích Logic -->
         <div class="info-card">
-            <h3><span class="tag tag-green">I2C BUS</span> Tín Hiệu, Trở Kéo & Chân Cấu Hình</h3>
+            <h3><span class="tag tag-yellow">AN TOÀN</span> Biện Pháp Triệt Tiêu Xung Đột & Nhiễu</h3>
             <table>
                 <thead>
-                    <tr><th>Tín hiệu</th><th>ESP32-S3</th><th>Module Cảm Biến</th><th>Ghi chú phần cứng</th></tr>
+                    <tr><th>Hạng Mục</th><th>Rủi Ro Kỹ Thuật</th><th>Biện Pháp Xử Lý Bắt Buộc</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><strong>SDA</strong></td><td>GPIO 8</td><td>MPU, HMC, BMP, PCA9685</td><td>Dây xanh lá, kèm trở kéo 4.7kΩ lên 3.3V</td></tr>
-                    <tr><td><strong>SCL</strong></td><td>GPIO 9</td><td>MPU, HMC, BMP, PCA9685</td><td>Dây xanh dương, kèm trở kéo 4.7kΩ lên 3.3V</td></tr>
-                    <tr><td><strong>MPU AD0</strong></td><td>GND</td><td>Chân AD0 của MPU6050</td><td>Nối GND để cố định địa chỉ I2C là 0x68</td></tr>
-                    <tr><td><strong>BMP SDO/CSB</strong></td><td>GND & 3V3</td><td>SDO $\rightarrow$ GND, CSB $\rightarrow$ 3V3</td><td>Chọn địa chỉ 0x76 & ép chạy chế độ I2C</td></tr>
-                    <tr><td><strong>PCA OE</strong></td><td>GND</td><td>Chân OE của PCA9685</td><td>Nối GND để luôn kích hoạt tín hiệu PWM</td></tr>
+                    <tr><td><strong>5V BEC ESC</strong></td><td>Xung đột áp làm nổ BEC</td><td><strong>CẮT DÂY ĐỎ (+5V) CỦA CẢ 4 ESC</strong> (Đã có UBEC 5V/3A)</td></tr>
+                    <tr><td><strong>Nhiễu I2C</strong></td><td>Xung motor làm treo I2C</td><td>Gắn 2 trở kéo <strong>4.7kΩ</strong> + Hệ thống <strong>Tụ lọc kép</strong></td></tr>
+                    <tr><td><strong>Lệch La Bàn</strong></td><td>Từ trường 40A làm sai lệch</td><td>Nâng la bàn trên trụ cao <strong>10–15cm</strong> so với PDB</td></tr>
+                    <tr><td><strong>Quá Áp ADC</strong></td><td>Áp Pin 12.6V làm cháy MCU</td><td>Dùng cầu trở <strong>10kΩ & 2.2kΩ</strong> + Tụ 104 lọc mượt</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <!-- Bảng 3: Nguồn Logic & GPS UART -->
+        <!-- Bảng 4: Hệ thống tụ lọc kép 104 & 100µF -->
         <div class="info-card">
-            <h3><span class="tag tag-purple">LOGIC & GPS</span> Phân Phối Nguồn 5V/3.3V & UART</h3>
+            <h3><span class="tag tag-yellow">TỤ LỌC KÉP</span> Phân Bổ Tụ Gốm 104 & Tụ Hóa 100µF</h3>
             <table>
                 <thead>
-                    <tr><th>Đường dây</th><th>Điểm cấp</th><th>Điểm nhận</th><th>Quy định an toàn</th></tr>
+                    <tr><th>Vị Trí Mắc Tụ</th><th>Loại Tụ & Trị Số</th><th>Điện Áp</th><th>Tác Dụng Kỹ Thuật</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><strong>5.0V Nguồn</strong></td><td>UBEC 5V/3A (hoặc BEC ESC1)</td><td>ESP32-S3 VIN & PCA9685 V+</td><td>Cấp nguồn chính cho IC vi điều khiển</td></tr>
-                    <tr><td><strong>3.3V Logic</strong></td><td>Chân 3V3 của ESP32-S3</td><td>VCC của tất cả cảm biến I2C</td><td>Tuyệt đối không cấp 5V vào cảm biến!</td></tr>
-                    <tr><td><strong>5 Tụ 104</strong></td><td>Hàn sát VCC-GND từng module</td><td>5 IC trong hệ thống</td><td>Lọc nhiễu cao tần từ vi điều khiển</td></tr>
-                    <tr><td><strong>GPS RX1</strong></td><td>GPIO 17</td><td>TXD của GPS ATGM336H</td><td>ESP32 nhận câu định vị NMEA 9600 baud</td></tr>
-                    <tr><td><strong>GPS TX1</strong></td><td>GPIO 18</td><td>RXD của GPS ATGM336H</td><td>ESP32 gửi lệnh cấu hình vệ tinh</td></tr>
+                    <tr><td><strong>5V VIN ESP32</strong></td><td>1x <strong>100µF</strong> + 1x <strong>104</strong></td><td>≥ 10V</td><td>Chống Brownout Reset khi thốc ga/còi kêu</td></tr>
+                    <tr><td><strong>Rail 3.3V Cảm Biến</strong></td><td>1x <strong>100µF</strong> + 1x <strong>104</strong></td><td>≥ 6.3V</td><td>Giữ phẳng tuyệt đối nguồn nuôi I2C</td></tr>
+                    <tr><td><strong>MPU6050 (VCC-GND)</strong></td><td>1x <strong>104 (0.1µF)</strong></td><td>≥ 10V</td><td>Triệt nhiễu cao tần Gyro/Accel (chống drift)</td></tr>
+                    <tr><td><strong>BMP280 (VCC-GND)</strong></td><td>1x <strong>104 (0.1µF)</strong></td><td>≥ 10V</td><td>Lọc nhiễu áp suất, chống nhảy độ cao ảo</td></tr>
+                    <tr><td><strong>HMC5883L (VCC-GND)</strong></td><td>1x <strong>104 (0.1µF)</strong></td><td>≥ 10V</td><td>Ổn định từ kế, tránh trôi góc la bàn</td></tr>
+                    <tr><td><strong>GPS ATGM336H</strong></td><td>1x <strong>104 (0.1µF)</strong></td><td>≥ 10V</td><td>Lọc sạch nguồn cho bộ khuếch đại LNA GPS</td></tr>
+                    <tr><td><strong>GPIO 1 (VBAT ADC)</strong></td><td>1x <strong>104 (0.1µF)</strong></td><td>≥ 10V</td><td>Song song trở 2.2kΩ lọc mượt số đọc Pin</td></tr>
+                    <tr><td><strong>Đầu Nguồn 4 ESC</strong></td><td>4x <strong>100µF</strong> (hoặc 1x 1000µF)</td><td>⚠️ ≥ 25V</td><td>Hấp thụ xung Back-EMF trả về từ cuộn dây motor</td></tr>
                 </tbody>
             </table>
-            <div class="warn-alert" style="background: rgba(245, 158, 11, 0.1); border-color: var(--accent-yellow); color: #fde68a;">
-                <strong>Cắt dây đỏ BEC:</strong> Phải cắt và bọc băng keo cách điện 3 dây đỏ của ESC 2, 3, 4 để tránh làm xung đột điện áp và nổ IC ổn áp BEC!
+            <div class="warn-alert" style="background:rgba(245, 158, 11, 0.1); border-left-color: var(--accent-yellow); color: #fde68a;">
+                <strong>Quy tắc phân cực Tụ Hóa 100µF:</strong> Chân có vạch xám (-) hàn vào <strong>GND (Mass)</strong>, chân còn lại (+) hàn vào <strong>5V / 3.3V</strong>. Tụ gốm 104 không phân cực.
             </div>
         </div>
     </div>

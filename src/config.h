@@ -7,19 +7,39 @@
 // CẤU HÌNH PHẦN CỨNG & CHÂN GPIO ESP32-S3 (R16N8)
 // =============================================================================
 
-// --- I2C BUS ---
+// --- I2C BUS (CẢM BIẾN & DRIVER MỞ RỘNG) ---
 // Dùng chung cho: MPU6050, HMC5883L / QMC5883L, BMP280, PCA9685
 #define PIN_I2C_SDA         8
 #define PIN_I2C_SCL         9
 #define I2C_FREQUENCY       400000  // 400kHz (I2C Fast Mode)
 
+// --- CHÂN ĐIỀU KHIỂN ESC ĐỘNG CƠ TRỰC TIẾP (HARDWARE MCPWM / LEDC 50-400Hz) ---
+// 4 kênh ngõ ra PWM trực tiếp từ ESP32-S3 (hoặc dùng qua PCA9685 I2C)
+#define PIN_MOTOR_1         4       // ESC 1: Động cơ M1 (Trước Phải - CCW)
+#define PIN_MOTOR_2         5       // ESC 2: Động cơ M2 (Trước Trái - CW)
+#define PIN_MOTOR_3         6       // ESC 3: Động cơ M3 (Sau Phải - CW)
+#define PIN_MOTOR_4         7       // ESC 4: Động cơ M4 (Sau Trái - CCW)
+
+// --- GIÁM SÁT ĐIỆN ÁP PIN & DÒNG ĐIỆN (ADC) ---
+#define PIN_VBAT_SENSE      1       // ADC1_CH0: Cầu phân áp trở 10kΩ/2.2kΩ giám sát pin LiPo 3S (11.1V-12.6V)
+#define PIN_CURRENT_SENSE   2       // ADC1_CH1: Cảm biến dòng điện PDB / Shunt Sensor
+
+// --- CÒI BÁO ĐỘNG & ĐÈN BÁO TRẠNG THÁI (BUZZER & STATUS LEDS) ---
+#define PIN_BUZZER          10      // Còi chíp Active Buzzer 5V (Báo Arm/Disarm/Pin yếu/Tìm drone)
+#define PIN_ARM_LED         3       // Đèn LED đỏ báo trạng thái Arm động cơ
+#define PIN_STATUS_LED      48      // WS2812 RGB LED nội hoặc LED xanh báo trạng thái cân bằng & GPS Fix
+
 // --- GPS UART (UART1) ---
 // Module ATGM336H NMEA 0183
-#define PIN_GPS_RX          17      // Nối với TX của ATGM336H
-#define PIN_GPS_TX          18      // Nối với RX của ATGM336H
+#define PIN_GPS_RX          17      // U1RXD: Nối với TX của ATGM336H
+#define PIN_GPS_TX          18      // U1TXD: Nối với RX của ATGM336H
 #define GPS_BAUDRATE        9600
 
-// --- MOTOR DRIVER DC (L9110S - Tuỳ chọn / Chức năng phụ) ---
+// --- BỘ THU SÓNG TAY CẦM RC RECEIVER (UART2 - SBUS / CRSF / ELRS / IBUS) ---
+#define PIN_RC_RX           43      // U2RXD: Nhận tín hiệu điều khiển từ bộ thu RC ELRS / Crossfire / SBUS
+#define PIN_RC_TX           44      // U2TXD: Telemetry hồi tiếp dữ liệu về tay cầm điều khiển
+
+// --- DRIVER MOTOR DC PHỤ (L9110S - Tuỳ chọn cơ cấu phụ) ---
 #define PIN_L9110S_IA       4
 #define PIN_L9110S_IB       5
 #define PIN_L9110S_IC       6
@@ -27,7 +47,7 @@
 
 // --- CÁC CHÂN CẤM SỬ DỤNG TRÊN ESP32-S3 R16N8 ---
 // GPIO 33-37: Dùng cho Octal SPI PSRAM / Flash
-// GPIO 19-20: Dùng cho USB D- / D+
+// GPIO 19-20: Dùng cho USB D- / D+ (Native USB CDC Telemetry)
 
 // =============================================================================
 // ĐỊA CHỈ I2C MẶC ĐỊNH CỦA CÁC CẢM BIẾN & THIẾT BỊ
