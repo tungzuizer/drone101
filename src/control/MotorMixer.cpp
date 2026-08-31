@@ -85,14 +85,14 @@ void MotorMixer::update(const ControlData& control, const AttitudeData& attitude
     float baseThrottle = ESC_IDLE_PULSE_US + normalizedThrottle * (maxAllowedPulse - ESC_IDLE_PULSE_US);
 
     // 5. MA TRẬN TRỘN TÍN HIỆU QUAD-X (Quad-X Motor Mixer)
-    // M1: Trước Phải (CCW) = Ga - Roll + Pitch + Yaw
-    // M2: Trước Trái (CW)  = Ga + Roll + Pitch - Yaw
-    // M3: Sau Phải (CW)   = Ga - Roll - Pitch - Yaw
-    // M4: Sau Trái (CCW)  = Ga + Roll - Pitch + Yaw
-    float m1 = baseThrottle - rollCmd + pitchCmd + yawCmd;
-    float m2 = baseThrottle + rollCmd + pitchCmd - yawCmd;
-    float m3 = baseThrottle - rollCmd - pitchCmd - yawCmd;
-    float m4 = baseThrottle + rollCmd - pitchCmd + yawCmd;
+    // M1: Trước Phải (CCW) = Ga - Roll - Pitch + Yaw
+    // M2: Trước Trái (CW)  = Ga + Roll - Pitch - Yaw
+    // M3: Sau Phải (CW)   = Ga - Roll + Pitch - Yaw
+    // M4: Sau Trái (CCW)  = Ga + Roll + Pitch + Yaw
+    float m1 = baseThrottle - rollCmd - pitchCmd + yawCmd;
+    float m2 = baseThrottle + rollCmd - pitchCmd - yawCmd;
+    float m3 = baseThrottle - rollCmd + pitchCmd - yawCmd;
+    float m4 = baseThrottle + rollCmd + pitchCmd + yawCmd;
 
     // 6. XỬ LÝ CHỐNG BÃO HÒA ĐỘNG CƠ (Anti-Saturation)
     applySaturationLimits(m1, m2, m3, m4, maxAllowedPulse);
@@ -149,10 +149,10 @@ MotorOutputs MotorMixer::mix(float throttlePercent, float rollCommand, float pit
     float maxAllowedPulse = ESC_MIN_PULSE_US + (float)motors_.getMaxTestThrottle() * 10.0f;
     float baseThrottle = ESC_IDLE_PULSE_US + (throttlePercent / 100.0f) * (maxAllowedPulse - ESC_IDLE_PULSE_US);
 
-    float m1 = baseThrottle - rollCommand + pitchCommand + yawCommand;
-    float m2 = baseThrottle + rollCommand + pitchCommand - yawCommand;
-    float m3 = baseThrottle - rollCommand - pitchCommand - yawCommand;
-    float m4 = baseThrottle + rollCommand - pitchCommand + yawCommand;
+    float m1 = baseThrottle - rollCommand - pitchCommand + yawCommand;
+    float m2 = baseThrottle + rollCommand - pitchCommand - yawCommand;
+    float m3 = baseThrottle - rollCommand + pitchCommand - yawCommand;
+    float m4 = baseThrottle + rollCommand + pitchCommand + yawCommand;
 
     applySaturationLimits(m1, m2, m3, m4, maxAllowedPulse);
 

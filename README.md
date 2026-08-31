@@ -15,7 +15,7 @@ Dự án firmware điều khiển bay (Flight Controller) chuyên dụng cho **Q
 ## 📑 MỤC LỤC
 1. [Tính Năng Nổi Bật](#-tính-năng-nổi-bật)
 2. [Nguyên Lý Hoạt Động Của Code (Dễ Hiểu Cho Người Mới)](#-nguyên-lý-hoạt-động-của-code-dễ-hiểu-cho-người-mới)
-3. [Giải Mã 4 Tầng Vòng Lặp Thời Gian Thực (Multi-Rate Loop)](#-giải-mã-4-tầng-vòng-lặp-thời-gian-thực-multi-rate-loop)
+3. [Kiến Trúc FreeRTOS Dual-Core & Vòng Lặp 250Hz](#-kiến-trúc-freertos-dual-core--vòng-lặp-250hz)
 4. [Phân Công Nhiệm Vụ Từng File Mã Nguồn](#-phân-công-nhiệm-vụ-từng-file-mã-nguồn)
 5. [Phần Cứng & Sơ Đồ Chân GPIO](#-phần-cứng--sơ-đồ-chân-gpio)
 6. [Bố Trí Động Cơ Quad-X & Chiều Quay](#-bố-trí-động-cơ-quad-x--chiều-quay)
@@ -23,11 +23,12 @@ Dự án firmware điều khiển bay (Flight Controller) chuyên dụng cho **Q
 8. [Cài Đặt Môi Trường & Nạp Firmware](#-cài-đặt-môi-trường--nạp-firmware)
 9. [Hướng Dẫn Tùy Chỉnh Code Trong config.h](#-hướng-dẫn-tùy-chỉnh-code-trong-configh)
 10. [Quy Trình 5 Bước Thử Nghiệm Từ Bàn Test Đến Cất Cánh](#-quy-trình-5-bước-thử-nghiệm-từ-bàn-test-đến-cất-cánh)
-11. [Hướng Dẫn Sử Dụng GCS Web Tuner](#-hướng-dẫn-sử-dụng-gcs-web-tuner)
-12. [Tập Lệnh Điều Khiển Serial CLI](#-tập-lệnh-điều-khiển-serial-cli)
-13. [Cẩm Nang Tune PID Kép (Cascade PID Tuning Guide)](#-cẩm-nang-tune-pid-kép-cascade-pid-tuning-guide)
-14. [Bảng Thông Số PID Khởi Điểm Khuyến Nghị](#-bảng-thông-số-pid-khởi-điểm-khuyến-nghị)
-15. [Tài Liệu Chi Tiết Đi Kèm](#-tài-liệu-chi-tiết-đi-kèm)
+11. [📱 Hướng Dẫn Điều Khiển Bằng Điện Thoại (Web Cockpit)](#-hướng-dẫn-điều-khiển-bằng-điện-thoại-smartphone-web-cockpit)
+12. [💻 Hướng Dẫn Sử Dụng GCS Web Tuner](#-hướng-dẫn-sử-dụng-gcs-web-tuner)
+13. [📟 Tập Lệnh Điều Khiển Serial CLI](#-tập-lệnh-điều-khiển-serial-cli)
+14. [🎯 Cẩm Nang Tune PID Kép (Cascade PID Tuning Guide)](#-cẩm-nang-tune-pid-kép-cascade-pid-tuning-guide)
+15. [📊 Bảng Thông Số PID Khởi Điểm Khuyến Nghị](#-bảng-thông-số-pid-khởi-điểm-khuyến-nghị)
+16. [📚 Tài Liệu Chi Tiết Đi Kèm](#-tài-liệu-chi-tiết-đi-kèm)
 
 ---
 
@@ -73,17 +74,42 @@ Dự án firmware điều khiển bay (Flight Controller) chuyên dụng cho **Q
 
 ---
 
-## ⏱️ GIẢI MÃ 4 TẦNG VÒNG LẶP THỜI GIAN THỰC (MULTI-RATE LOOP)
+## ⏱️ KIẾN TRÚC FREERTOS DUAL-CORE & VÒNG LẶP 250HZ
 
-Trong `src/main.cpp`, vi điều khiển ESP32-S3 không dùng hàm `delay()` làm nghẽn CPU, mà chia công việc thành **4 tầng thời gian độc lập**:
+Hệ thống tận dụng tối đa sức mạnh 2 nhân xử lý độc lập của vi điều khiển **ESP32-S3 (240MHz)** với kiến trúc bất đối xứng (Asymmetric Task Distribution):
 
+```text
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│              KIẾN TRÚC PHÂN CHIA 2 CORE FREERTOS TRÊN ESP32-S3                     │
+└────────────────────────────────────────────────────────────────────────────────────┘
+
+ ╔═══════════════════════════════════════╗      ╔═══════════════════════════════════════╗
+ ║   CORE 0: NETWORKING & COMMS TASK     ║      ║   CORE 1: REAL-TIME FLIGHT TASK       ║
+ ║         (Mức ưu tiên: Priority 1)     ║      ║        (Mức ưu tiên: Priority 24)     ║
+ ╠═══════════════════════════════════════╣      ╠═══════════════════════════════════════╣
+ ║ • Wi-Fi Soft-AP Server (ESP32-DRONE)  ║      ║ • 250Hz Fast Loop (Mỗi 4000µs)        ║
+ ║ • WebServer (Cung cấp Web Cockpit)    ║      ║ • Đọc IMU MPU6050 (I2C 400kHz)        ║
+ ║ • WebSockets Daemon (Uplink 40Hz)     ║      ║ • Mahony AHRS 9-DOF Attitude Filter   ║
+ ║ • Broadcast Telemetry $T,... (25Hz)   ║      ║ • Cascade Dual-Loop PID Controller    ║
+ ║ • Xử lý kết nối Captive Portal        ║      ║ • Motor Mixer Quad-X & PWM ESCs       ║
+ ╚═══════════════════════════════════════╝      ╚═══════════════════════════════════════╝
+                    │                                              ▲
+                    ▼                                              │
+ ┌────────────────────────────────────────────────────────────────────────────────────┐
+ │  LOCK-FREE DOUBLE BUFFER MAILBOX (std::atomic<uint8_t> swap index — 0 lock latency)│
+ └────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4 Tầng Thời Gian Thực Trên Core 1 (Multi-Rate Loop):
 ```text
 +------------------------------------------------------------------------------------+
 | 1. FAST LOOP (250Hz - Mỗi 4.0ms) ── VÒNG SINH TỬ ĐIỀU KHIỂN CÂN BẰNG               |
 |    • Đọc dữ liệu MPU6050 (Gyro + Accel).                                          |
 |    • Chạy bộ lọc Mahony AHRS ước lượng góc Roll, Pitch, Yaw.                      |
+|    • Đọc snapshot lệnh từ điện thoại / RC (Lock-free atomic read < 0.1µs).        |
 |    • Kiểm tra an toàn Failsafe (Góc nghiêng < 45°, mất sóng < 500ms).              |
 |    • Chạy thuật toán Cascade PID & Bơm xung PWM ra 4 ESC động cơ.                 |
+|    • Đẩy Telemetry vào Mailbox cho Core 0 phát về điện thoại.                     |
 +------------------------------------------------------------------------------------+
 | 2. MEDIUM LOOP (50Hz - Mỗi 20ms) ── VÒNG CẢM BIẾN PHỤ & LỆNH ĐIỀU KHIỂN             |
 |    • Đọc Từ kế HMC5883L / QMC5883L (La bàn số định hướng Bắc).                    |
@@ -105,8 +131,10 @@ Trong `src/main.cpp`, vi điều khiển ESP32-S3 không dùng hàm `delay()` l�
 
 | File Mã Nguồn | Vai Trò & Chức Năng Cụ Thể |
 | :--- | :--- |
-| **`src/main.cpp`** | **Tổng chỉ huy**: Quản lý 4 tầng vòng lặp thời gian thực, điều phối đọc cảm biến, gọi PID và gửi Telemetry. |
-| **`src/config.h`** | **Bảng cài đặt**: Nơi tập trung toàn bộ cấu hình chân GPIO, tần số vòng lặp, PID mặc định và giới hạn an toàn. |
+| **`src/main.cpp`** | **Tổng chỉ huy**: Quản lý vòng lặp bay 250Hz trên Core 1, khởi động FreeRTOS Comms Task trên Core 0, trọng tài nguồn điều khiển và đẩy Telemetry. |
+| **`src/config.h`** | **Bảng cài đặt**: Nơi tập trung cấu hình chân GPIO, Wi-Fi Soft-AP, tần số vòng lặp, PID mặc định và giới hạn an toàn. |
+| **`src/control/WifiControlInput.cpp`**| **Cầu nối Wi-Fi điện thoại**: Quản lý Soft-AP, WebServer, WebSockets 40Hz, kiến trúc Lock-Free Double Buffer trao đổi liên Core. |
+| **`src/control/WebCockpitHtml.h`**| **Web Cockpit Nhúng (PROGMEM)**: Giao diện lái máy bay cảm ứng HTML5/JS/Canvas, Artificial Horizon 3D, thanh trượt Slide-to-Arm và nút Dừng khẩn cấp. |
 | **`src/sensors/ImuSensor.cpp`** | **Mắt thần**: Giao tiếp MPU6050 qua I2C 400kHz, kích hoạt lọc số DLPF 98Hz và tự động trừ trôi điểm 0 (Gyro Bias). |
 | **`src/sensors/Magnetometer.cpp`** | **La bàn**: Tự động nhận diện chip thật HMC5883L (0x1E) hay chip clone QMC5883L (0x0D), xoay 3D calib từ trường. |
 | **`src/sensors/Barometer.cpp`** | **Đo độ cao**: Đọc BMP280, tự động lấy mẫu áp suất mặt đất làm mốc $0.0\text{m}$ khi khởi động. |
@@ -115,7 +143,7 @@ Trong `src/main.cpp`, vi điều khiển ESP32-S3 không dùng hàm `delay()` l�
 | **`src/control/PidController.cpp`** | **Thuật toán PID**: Tính sai số $P, I, D$, tích hợp chống bão hòa tích phân (Anti-Windup) và lọc rung D-term LPF. |
 | **`src/control/MotorMixer.cpp`** | **Bộ chia lực**: Tính toán ma trận hòa trộn cho Quadcopter khung X ($M_1, M_2, M_3, M_4$). |
 | **`src/safety/FailsafeManager.cpp`** | **Bảo vệ an toàn**: Tự động ngắt motor khi mất sóng >500ms, góc nghiêng lật >45° hoặc kẹt I2C. |
-| **`src/control/SerialControlInput.cpp`**| **Cầu nối giao tiếp**: Phân tích cú pháp tập lệnh CLI và gửi gói tin trạng thái cho Web Tuner. |
+| **`src/control/SerialControlInput.cpp`**| **Giao tiếp Serial**: Phân tích cú pháp tập lệnh CLI và gửi gói tin trạng thái cho GCS Web Tuner. |
 | **`src/actuators/MotorController.cpp`** | **Cơ cấu chấp hành**: Phát xung PWM 50–400Hz (1000–2000µs) qua PCA9685 hoặc ESP32 hardware LEDC. |
 
 ---
@@ -312,6 +340,57 @@ TEST_MOTOR M4 12   -> Motor 4 (Sau Trái) phải quay NGƯỢC chiều kim đồ
 
 ---
 
+## 📱 HƯỚNG DẪN ĐIỀU KHIỂN BẰNG ĐIỆN THOẠI (SMARTPHONE WEB COCKPIT)
+
+Hệ thống tích hợp sẵn một **Web Cockpit máy bay chuyên nghiệp** lưu trong bộ nhớ Flash của ESP32-S3 (`PROGMEM`), không cần cài đặt App từ App Store hay CH Play, hoạt động độc lập ngay cả khi không có mạng Internet.
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│                    GIAO DIỆN ĐIỀU KHIỂN WEB COCKPIT TRÊN ĐIỆN THOẠI                │
+└────────────────────────────────────────────────────────────────────────────────────┘
+
+  [ 📡 WI-FI: CONNECTED (25Hz) ]   [ 🔋 PIN: 12.0V ]   [ 🛑 DỪNG KHẨN CẤP (KILL) ]
+ ────────────────────────────────────────────────────────────────────────────────────
+  [ CẦN TRÁI: GA + XOAY ]         [ CHÂN TRỜI NHÂN TẠO ]       [ CẦN PHẢI: LĂN + CHÚI ]
+      ▲ Ga (Throttle)                   (3D Artificial                 ▲ Chúi (Pitch)
+      │                                    Horizon)                    │
+  ◄───┼───► Xoay (Yaw)                                             ◄───┼───► Lăn (Roll)
+      │                                                                │
+      ▼                                                                ▼
+ ────────────────────────────────────────────────────────────────────────────────────
+  [ CHỌN GA: 30% / 60% / 100% ]   [ 🔴 SLIDE TO ARM ──────► ]   [ MỐC ĐỘNG CƠ: M1-M4 ]
+```
+
+### 1. Cách kết nối và mở buồng lái trên điện thoại:
+1. **Bật nguồn Drone**: Đợi 3 giây để ESP32-S3 phát mạng Wi-Fi Soft-AP.
+2. **Kết nối Wi-Fi trên điện thoại**:
+   * **Tên Wi-Fi (SSID)**: `ESP32-DRONE-FC`
+   * **Mật khẩu**: `12345678`
+3. **Mở giao diện Cockpit**:
+   * **Tự động (Captive Portal)**: Sau khi kết nối Wi-Fi, điện thoại sẽ tự động mở màn hình đăng nhập hiển thị ngay Web Cockpit.
+   * **Thủ công**: Mở trình duyệt (Safari / Chrome), truy cập địa chỉ IP: **`http://192.168.4.1`**
+
+### 2. Bố trí điều khiển 2 cần ảo (Mode 2 Chuẩn Quốc Tế):
+* **Cần bên TRÁI**:
+  * **Trục dọc (Lên/Xuống)**: Điều chỉnh ga (**Throttle** $0\% - 100\%$). Cần có cơ chế giữ vị trí ga (không tự bật về giữa).
+  * **Trục ngang (Trái/Phải)**: Điều chỉnh quay đầu hướng mũi drone (**Yaw** $-180^\circ/\text{s} \rightarrow +180^\circ/\text{s}$). Tự động trả về tâm $0$ khi thả tay.
+* **Cần bên PHẢI**:
+  * **Trục dọc (Lên/Xuống)**: Nghiêng tới trước / ngửa ra sau (**Pitch** $-45^\circ \rightarrow +45^\circ$). Tự động trả về tâm $0$ khi thả tay.
+  * **Trục ngang (Trái/Phải)**: Nghiêng lượn sang trái / sang phải (**Roll** $-45^\circ \rightarrow +45^\circ$). Tự động trả về tâm $0$ khi thả tay.
+
+### 3. Quy chuẩn an toàn khi bay bằng điện thoại:
+* **Thanh trượt mở khóa (Slide-to-Arm)**: Để bật động cơ, người lái phải gạt thanh trượt từ trái sang phải. Hệ thống chỉ cho phép Arm khi **Cần Ga đang ở mức 0%** và **Góc nghiêng máy bay < 10°**.
+* **Nút Dừng Khẩn Cấp (Emergency Kill Switch)**: Nút màu đỏ ở góc trên bên phải. Nhấn vào sẽ lập tức cắt xung 4 motor về 0 trong $0.001\text{s}$ bất kể tình huống.
+* **Giới hạn mức ga 3 cấp độ (Flight Level)**:
+  * `BEG (30%)`: Dành cho người mới tập bay trong phòng, trần ga khóa cứng ở mức tối đa 30%.
+  * `SPT (60%)`: Dành cho bay ngoài trời với gió nhẹ, trần ga 60%.
+  * `PRO (100%)`: Toàn bộ 100% công suất động cơ.
+* **Cơ chế chống chạm nhầm**:
+  * Nếu điện thoại bị **tắt màn hình**, **chuyển tab trình duyệt**, hoặc **có cuộc gọi đến**, hệ thống Web Cockpit tự động gửi lệnh ngắt ga và ngắt Arm ngay lập tức qua API `visibilitychange`.
+  * Nếu **mất sóng Wi-Fi quá 500ms**, bộ phận Failsafe trên Core 1 của ESP32-S3 sẽ tự động kích hoạt chế độ hạ cánh an toàn (FS_LANDING) hoặc cắt motor.
+
+---
+
 ## 💻 HƯỚNG DẪN SỬ DỤNG GCS WEB TUNER
 
 Giao diện **GCS Web Tuner** nằm tại `tools/tuner/index.html`, sử dụng công nghệ Web Serial API của trình duyệt:
@@ -354,59 +433,128 @@ Giao thức điều khiển qua cổng Serial với tốc độ baud `115200`. C
 
 ---
 
-## 🎯 CẨM NANG TUNE PID KÉP (CASCADE PID TUNING GUIDE)
+## 🎯 CẨM NANG TUNE PID THỰC CHIẾN (REAL-WORLD PID TUNING GUIDE)
 
-Hệ thống điều khiển drone sử dụng cấu trúc **Cascade 2-Loop**:
+Hệ thống điều khiển drone sử dụng cấu trúc **Cascade 2-Loop (PID 2 Tầng Kép)**:
 ```text
 Lệnh Góc (Roll/Pitch deg) ──► [ Angle PID (Vòng ngoài) ] ──► Tốc độ góc mục tiêu (deg/s)
                                                                      │
 Đo Góc Mahony AHRS ──────────────────────────────────────────────────┘
                                                                      ▼
-                                                          [ Rate PID (Vòng trong) ] ──► Motor Mixer ──► ESC / Motor
+                                                          [ Rate PID (Vòng trong @ 250Hz) ] ──► Motor Mixer ──► ESC / Motor
                                                                      ▲
 Tốc độ đo MPU6050 Gyro (deg/s) ──────────────────────────────────────┘
 ```
 
-### Quy trình Tune chuẩn 5 bước:
+---
 
-#### Bước 1: Tune Vận Tốc Góc Roll Rate & Pitch Rate ($K_p$)
-1. Chọn chế độ bay `RATE` (Acro Mode). Đặt $K_i = 0, K_d = 0$.
-2. Tăng dần $K_p$ của Rate PID từ $0.4 \rightarrow 0.8 \rightarrow 1.2$.
-3. Cầm drone trên tay (đeo găng tay bảo hộ) hoặc treo khung dây thử nghiệm, lắc nhẹ thân drone:
-   * Nếu drone **chống lại lực lắc yếu ớt** $\rightarrow$ Thiếu $K_p$, tiếp tục tăng.
-   * Nếu drone **rung bần bật tần số cao (Fast Oscillation)** $\rightarrow$ Dư $K_p$, giảm bớt $20\%$.
+### 🛡️ 3 Giai Đoạn Thử Nghiệm An Toàn Trước Khi Bay Tự Do
 
-#### Bước 2: Thêm Vi Phân Giảm Chấn Rate $K_d$
-1. Bắt đầu tăng $K_d$ từ $0.005 \rightarrow 0.010 \rightarrow 0.018$.
-2. Thành phần $K_d$ giúp dập tắt dao động và triệt tiêu quán tính khi drone dừng xoay.
-3. *Lưu ý*: Không tăng $K_d$ quá cao vì sẽ làm nóng động cơ do khuếch đại nhiễu rung cơ khí.
-
-#### Bước 3: Thêm Tích Phân Giữ Vận Tốc Rate $K_i$
-1. Tăng dần $K_i$ từ $0.02 \rightarrow 0.05 \rightarrow 0.08$.
-2. $K_i$ giúp drone duy trì góc bay ổn định khi bị gió thổi lệch hoặc trọng tâm không nằm chính giữa.
-
-#### Bước 4: Tune Vòng Ngoài Điều Khiển Góc (Angle Loop $K_p$)
-1. Chuyển sang chế độ `ANGLE` (Tự cân bằng).
-2. Tăng $K_p$ của Roll Angle & Pitch Angle từ $2.5 \rightarrow 4.0 \rightarrow 5.0$.
-3. Khi nghiêng drone rồi thả tay ra, drone phải **bật trở lại vị trí nằm ngang nhanh chóng và dứt khoát** mà không bị lắc lư qua lại quá 1 chu kỳ.
-
-#### Bước 5: Tune Trục Xoay Yaw Rate
-1. Đặt Angle PID cho Yaw = 0 (Trục Yaw điều khiển trực tiếp Rate).
-2. Tăng $K_p$ Yaw Rate từ $1.5 \rightarrow 2.8$ và $K_i$ từ $0.05 \rightarrow 0.15$. Thông thường không cần dùng $K_d$ cho trục Yaw ($K_d = 0$).
+```text
+[ GIAI ĐOẠN 1: TEST TRÊN KHUNG 1 TRỤC ] ──► Cố định 1 trục (Pitch), chỉ cho drone nghiêng tự do trục Roll.
+                  │
+                  ▼
+[ GIAI ĐOẠN 2: TEST CẦM TAY BẢO HỘ ]    ──► Cầm chặt chân đế dưới bụng, lên ga 25%, búng cần cảm nhận lực cản.
+                  │
+                  ▼
+[ GIAI ĐOẠN 3: BUỘC DÂY HÃM ĐẤT (TETHER) ] ──► Buộc 4 góc chân đáp xuống đất bằng dây dù dài 0.5m, hover thử.
+```
 
 ---
 
-## 📊 BẢNG THÔNG SỐ PID KHỞI ĐIỂM KHUYẾN NGHỊ
+### 🛠️ Quy Trình 5 Bước Tune PID Thực Tế Chi Tiết:
 
-Dành cho khung Quadcopter 330–450mm, động cơ A2212 1000KV, cánh quạt 1045 và pin 3S:
+#### 🟢 BƯỚC 1: Tìm $K_p$ Vòng Trong (Roll Rate & Pitch Rate) — "Độ Cứng Vững"
+1. **Chuẩn bị**: Đặt $K_i = 0$, $K_d = 0$, Angle $K_p = 0$ (hoặc bay ở chế độ `ACRO/RATE`).
+2. **Khởi điểm**: Đặt $K_p = 0.60$.
+3. **Thực hiện**: Lên ga vừa đủ để drone bắt đầu nâng mình khỏi mặt đất (~25% - 30% ga).
+4. **Tăng dần $K_p$**: Tăng mỗi lần `+0.15` ($0.60 \rightarrow 0.75 \rightarrow 0.90 \rightarrow 1.05 \rightarrow 1.20 \rightarrow 1.35...$):
+   * *Nếu thấy drone phản hồi lờ đờ, bị lật nghiêng trôi dạt* $\rightarrow$ **Thiếu $K_p$**, tiếp tục tăng.
+   * *Nếu thấy drone bắt đầu xuất hiện **rung dao động nhanh tần số cao (Fast Oscillation 15-30Hz)** phát ra tiếng rít "zizz zizz"* $\rightarrow$ **Dư $K_p$**.
+5. **Điểm chốt $K_p$ chuẩn**: Lấy giá trị tại điểm bắt đầu rung **nhân với $0.70$** (giảm bớt $30\%$).
+   * *Ví dụ: Rung tại $K_p = 1.60 \rightarrow$ Chốt $K_p = 1.60 \times 0.70 = 1.12 \approx 1.20$.*
 
-| Vòng Điều Khiển (Loop) | $K_p$ (Proportional) | $K_i$ (Integral) | $K_d$ (Derivative) | Giới Hạn Tích Phân ($I_{\text{max}}$) | Ngõ Ra Max |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Roll Rate (Trục Lăn)** | `1.200` | `0.050` | `0.015` | `200.0` | `300.0` |
-| **Pitch Rate (Trục Chúi)** | `1.200` | `0.050` | `0.015` | `200.0` | `300.0` |
-| **Yaw Rate (Trục Xoay)** | `2.500` | `0.100` | `0.000` | `200.0` | `300.0` |
-| **Roll Angle (Góc Lăn)** | `4.500` | `0.000` | `0.000` | `0.0` | `250.0 deg/s` |
-| **Pitch Angle (Góc Chúi)**| `4.500` | `0.000` | `0.000` | `0.0` | `250.0 deg/s` |
+---
+
+#### 🟢 BƯỚC 2: Thêm $K_d$ Vòng Trong — "Phanh Hãm Quán Tính & Dập Tắt Rung Lắc"
+1. **Khởi điểm**: Đặt $K_d = 0.015$.
+2. **Tăng dần $K_d$**: Tăng mỗi lần `+0.005` ($0.015 \rightarrow 0.020 \rightarrow 0.025 \rightarrow 0.030 \rightarrow 0.035$):
+   * Búng nhẹ cần gạt Roll/Pitch rồi thả tay về giữa:
+   * *Nếu drone dừng lại lập tức, không bị nảy giật lại (No Bounce-back)* $\rightarrow$ **$K_d$ đạt chuẩn**.
+3. ⚠️ **KIỂM TRA NHIỆT ĐỘ MOTOR (BẮT BUỘC)**:
+   * Sau mỗi lần thử 45 giây, đáp drone, ngắt ARM và **dùng tay chạm trực tiếp vào vỏ 4 motor**:
+   * *Motor ấm nhẹ ($< 45^\circ\text{C}$)* $\rightarrow$ Hoàn hảo.
+   * *Motor nóng rát tay ($> 60^\circ\text{C}$)* $\rightarrow$ **$K_d$ quá cao** (khuếch đại nhiễu rung cơ học làm ESC nhồi xung liên tục) $\rightarrow$ **Phải giảm ngay $K_d$ xuống 30%** và kiểm tra đệm cao su giảm chấn của MPU6050.
+
+---
+
+#### 🟢 BƯỚC 3: Thêm $K_i$ Vòng Trong — "Khóa Góc Cố Định & Chống Gió Tạt"
+1. **Khởi điểm**: Đặt $K_i = 0.02$.
+2. **Tăng dần $K_i$**: Tăng mỗi lần `+0.01` ($0.02 \rightarrow 0.03 \rightarrow 0.04 \rightarrow 0.05$):
+   * Nghiêng cần lái tạo góc nghiêng $15^\circ$ rồi thả tay:
+   * *Nếu drone giữ nguyên tư thế góc đó khi bay thẳng mà không bị trôi từ từ về mặt đất* $\rightarrow$ **$K_i$ đạt chuẩn**.
+   * *Nếu thấy drone xuất hiện **dao động nhấp nhô chậm chạp (Slow Wobble 1-2Hz)*** $\rightarrow$ **Dư $K_i$**, giảm bớt $20\%$.
+
+---
+
+#### 🟢 BƯỚC 4: Kích Hoạt $K_p$ Vòng Ngoài (Angle Loop) — "Độ Nhạy Tự Cân Bằng"
+1. **Chuyển chế độ bay**: Chọn chế độ **`ANGLE`** trên Web Cockpit / GCS.
+2. **Khởi điểm**: Đặt Angle $K_p = 3.0$ (Angle $K_i = 0$, Angle $K_d = 0$).
+3. **Tăng dần $K_p$**: Tăng mỗi lần `+0.5` ($3.0 \rightarrow 3.5 \rightarrow 4.0 \rightarrow 4.5 \rightarrow 5.0$):
+   * Lấy tay nghiêng drone rồi buông ra: Drone phải **tự động bật thẳng đứng lại vị trí cân bằng ngang trong tích tắc**.
+   * *Nếu drone phản hồi trả về chậm chạp* $\rightarrow$ Tăng Angle $K_p$.
+   * *Nếu drone tự cân bằng nhưng bị lắc lư qua lại vài nhịp trước khi phẳng* $\rightarrow$ Giảm Angle $K_p$.
+
+---
+
+#### 🟢 BƯỚC 5: Tune Trục Xoay Đầu (Yaw Rate Loop)
+1. Trục Yaw không sử dụng vòng ngoài Angle (luôn điều khiển trực tiếp tốc độ xoay deg/s).
+2. **Khởi điểm**: Đặt $K_p = 2.0$, $K_i = 0.05$, $K_d = 0.000$.
+3. **Tăng dần**: Tăng $K_p$ lên $2.5 - 3.0$ để mũi drone xoay dứt khoát theo cần lái.
+4. Tăng $K_i$ lên $0.08 - 0.10$ để giữ hướng mũi cố định, không bị tự xoay đuôi do phản lực cánh quạt (Yaw Drift).
+5. *Lưu ý*: Trục Yaw thường **luôn để $K_d = 0$** để tránh làm nóng motor vô ích.
+
+---
+
+### 🩺 Bảng Tra Cứu Chẩn Đoán & "Bắt Bệnh" PID Qua Hiện Tượng Thực Tế
+
+| Hiện Tượng Quan Sát Khi Bay | Nguyên Nhân Kỹ Thuật | Hành Động Khắc Phục Ngay |
+| :--- | :--- | :--- |
+| **Drone rung bần bật tần số cao (Fast Oscillation)** | $K_p$ Rate quá cao | Giảm $K_p$ Rate trục Roll/Pitch xuống $20\%$. |
+| **Motor kêu rít rè rè và nóng bỏng tay sau khi bay** | $K_d$ Rate quá cao hoặc MPU6050 bị rung cơ học | Giảm $K_d$ Rate xuống $0.020 - 0.025$, chèn thêm đệm xốp 3M chống rung dưới chip MPU6050. |
+| **Drone gật gù / lắc lư nhấp nhô chậm (1-2Hz)** | $K_p$ Angle quá cao hoặc $K_i$ Rate bị dồn tích phân | Giảm $K_p$ Angle từ $4.5 \rightarrow 3.5$; giảm nhẹ $K_i$ Rate. |
+| **Khi nhả cần lái, drone bị nảy ngược lại (Bounce-back)** | Thiếu lực giảm chấn vi phân | Tăng $K_d$ Rate thêm $+0.005$. |
+| **Drone tự trôi góc nghiêng sang một bên khi bay** | Lệch trọng tâm (Pin không đều) hoặc thiếu $K_i$ | Đặt pin vào chính giữa trọng tâm khung; tăng $K_i$ Rate từ $0.03 \rightarrow 0.05$. |
+| **Rung lắc mạnh khi hạ độ cao thẳng đứng (Prop Wash)** | Drone rơi vào luồng gió xoáy của chính cánh quạt | Tăng nhẹ $K_d$ Rate và đảm bảo bộ lọc LPF D-term $\alpha = 0.70$ đang bật trong code. |
+
+---
+
+## 📊 BẢNG THÔNG SỐ PID KHỞI ĐIỂM CHUẨN
+
+*Áp dụng chuẩn xác cho khung Quad-X 330–450mm, động cơ A2212 1000KV, cánh quạt 1045, ESC 30A và pin LiPo 3S 2200mAh:*
+
+| Bộ Điều Khiển (Loop) | Trục (Axis) | $K_p$ | $K_i$ | $K_d$ | D-Filter $\alpha$ | Giới Hạn Max |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Angle PID (Vòng ngoài)** | **Roll Angle** | `4.50` | `0.00` | `0.00` | — | $\pm 300^\circ/\text{s}$ |
+| **Angle PID (Vòng ngoài)** | **Pitch Angle** | `4.50` | `0.00` | `0.00` | — | $\pm 300^\circ/\text{s}$ |
+| **Rate PID (Vòng trong 250Hz)** | **Roll Rate** | `1.20` | `0.04` | `0.035` | `0.70` (LPF) | $\pm 400\,\mu\text{s}$ |
+| **Rate PID (Vòng trong 250Hz)** | **Pitch Rate** | `1.20` | `0.04` | `0.035` | `0.70` (LPF) | $\pm 400\,\mu\text{s}$ |
+| **Rate PID (Vòng trong 250Hz)** | **Yaw Rate** | `2.50` | `0.08` | `0.000` | — | $\pm 400\,\mu\text{s}$ |
+
+---
+
+## ❓ KHI CHỈNH SỬA TRÊN WEB CÓ PHẢI NẠP LẠI CODE KHÔNG?
+
+| Thao tác bạn thực hiện | Có cần nạp lại code (`Upload`) không? | Giải thích cơ chế hoạt động |
+| :--- | :---: | :--- |
+| **Chỉnh thông số PID / Ga / Calib trên Web Tuner** | ❌ **KHÔNG** *(khi đang bay thử)*<br>✅ **CÓ** *(khi muốn lưu vĩnh viễn)* | • Khi kéo thanh trượt trên Web, thông số được nạp thẳng vào **RAM** của ESP32-S3 qua WebSocket/Serial và có hiệu lực ngay lập tức để bay thử mà không cần ngắt kết nối.<br>• Khi ngắt nguồn/rút pin, bộ nhớ RAM sẽ bị reset về mặc định. Sau khi tìm được bộ PID chuẩn ưng ý, hãy mở file `src/control/MotorMixer.cpp` cập nhật lại các giá trị đó rồi nạp code 1 lần duy nhất để lưu vĩnh viễn vào bộ nhớ Flash. |
+| **Sửa giao diện Web Cockpit (Nút bấm, màu sắc, HTML/CSS/JS)** | ✅ **BẮT BUỘC CÓ** | Toàn bộ giao diện Web Cockpit trên điện thoại được lưu dưới dạng chuỗi nhúng trong bộ nhớ Flash của ESP32-S3 tại file `src/control/WebCockpitHtml.h` (`PROGMEM`). Mọi thay đổi về nút bấm, bố cục hoặc logic JavaScript đều cần nạp lại firmware (`pio run -t upload`) thì điện thoại mới nhận giao diện mới. |
+
+### 💡 Quy trình làm việc chuẩn (Standard Workflow):
+```text
+[ Chỉnh số PID trên Web ] ──(Bay thử thấy êm)──► [ Ghi lại số vào MotorMixer.cpp ] ──► [ Nạp code lưu vĩnh viễn ]
+[ Sửa nút/Giao diện Web ] ──────────────────────► [ Sửa file WebCockpitHtml.h ]      ──► [ Nạp code vào ESP32 ]
+```
 
 ---
 

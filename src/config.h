@@ -39,7 +39,8 @@
 #define PIN_RC_RX           43      // U2RXD: Nhận tín hiệu điều khiển từ bộ thu RC ELRS / Crossfire / SBUS
 #define PIN_RC_TX           44      // U2TXD: Telemetry hồi tiếp dữ liệu về tay cầm điều khiển
 
-// --- DRIVER MOTOR DC PHỤ (L9110S - Tuỳ chọn cơ cấu phụ) ---
+// --- DRIVER MOTOR DC PHỤ (L9110S - Tuỳ chọn cơ cấu phụ khi dùng PCA9685 cho ESC chính) ---
+// Lưu ý: Chỉ dùng GPIO 4-7 cho L9110S nếu 4 ESC chính được điều khiển qua module I2C PCA9685
 #define PIN_L9110S_IA       4
 #define PIN_L9110S_IB       5
 #define PIN_L9110S_IC       6
@@ -88,5 +89,22 @@
 #define MAX_TEST_THROTTLE_PERCENT 30    // Giới hạn ga tối đa trong giai đoạn test bàn (30%)
 #define FAILSAFE_TIMEOUT_MS     500     // Thời gian mất tín hiệu điều khiển trước khi ngắt động cơ
 #define MAX_TILT_ANGLE_DEG      45.0f   // Góc nghiêng tối đa trước khi kích hoạt failsafe cắt motor
+
+// =============================================================================
+// CẤU HÌNH WI-FI SOFT-AP & ĐIỀU KHIỂN BẰNG ĐIỆN THOẠI (SMARTPHONE WEB COCKPIT)
+// =============================================================================
+#define WIFI_AP_SSID            "ESP32-DRONE-FC"
+#define WIFI_AP_PASS            "12345678"          // Tối thiểu 8 ký tự WPA2
+#define WIFI_AP_CHANNEL         6                   // Kênh truyền sóng Wi-Fi (1, 6, 11)
+#define WIFI_AP_MAX_CLIENTS     4                   // Giới hạn số thiết bị kết nối đồng thời
+#define WIFI_HTTP_PORT          80                  // Cổng Web Server
+#define WIFI_WS_PORT            81                  // Cổng WebSocket
+#define WIFI_TELEMETRY_RATE_HZ  25                  // Tần số truyền Telemetry về điện thoại (25Hz)
+#define WIFI_FAILSAFE_TIMEOUT_MS 500                // Thời gian mất gói tin Wi-Fi kích hoạt Failsafe (500ms)
+
+// Các chế độ giới hạn ga an toàn trên giao diện điện thoại
+#define PHONE_THROTTLE_LIMIT_BEGINNER 30.0f         // Mức tập bay trong nhà: Max 30% ga
+#define PHONE_THROTTLE_LIMIT_SPORT    60.0f         // Mức bay ngoài trời: Max 60% ga
+#define PHONE_THROTTLE_LIMIT_PRO     100.0f         // Mức tối đa: 100% ga
 
 #endif // CONFIG_H

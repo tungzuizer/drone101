@@ -3,163 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32-S3 Drone Tuner & Ground Control Station</title>
+    <title>ESP32-S3 Flight Controller - Web Serial Tuner & PID AI Advisor</title>
     <style>
         :root {
-            --bg-primary: #0b0f19;
-            --bg-secondary: #111827;
-            --bg-card: #1f2937;
-            --bg-hover: #374151;
-            --border-color: #374151;
-            --accent-blue: #3b82f6;
-            --accent-cyan: #06b6d4;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --accent-yellow: #f59e0b;
-            --accent-purple: #8b5cf6;
-            --text-main: #f9fafb;
-            --text-muted: #9ca3af;
+            --bg-base: #070a12;
+            --bg-panel: #0d1322;
+            --bg-card: #141c2e;
+            --bg-input: #0a0f1d;
+            --bg-hover: #1e293b;
+            --border: #1e293b;
+            --border-bright: #334155;
+
+            --cyan: #00f3ff;
+            --cyan-glow: rgba(0, 243, 255, 0.25);
+            --blue: #3b82f6;
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.25);
+            --amber: #f59e0b;
+            --amber-glow: rgba(245, 158, 11, 0.25);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.3);
+            --purple: #a855f7;
+
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'SF Pro Display', Helvetica, Arial, sans-serif;
         }
 
         body {
-            background-color: var(--bg-primary);
-            color: var(--text-main);
+            background-color: var(--bg-base);
+            color: var(--text);
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            user-select: none;
         }
 
         /* --- Header Navigation Bar --- */
         header {
-            background-color: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            padding: 10px 20px;
+            background: linear-gradient(180deg, #11192e 0%, var(--bg-panel) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 58px;
+            height: 56px;
             flex-shrink: 0;
+            z-index: 10;
         }
 
-        .brand {
+        .brand-box {
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
-        .brand-icon {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #0284c7, var(--cyan));
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
+            font-size: 20px;
+            box-shadow: 0 0 12px var(--cyan-glow);
         }
 
         .brand-title {
-            font-size: 16px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            background: linear-gradient(90deg, #fff, var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .brand-subtitle {
-            font-size: 11px;
+        .brand-sub {
+            font-size: 10px;
             color: var(--text-muted);
+            letter-spacing: 0.3px;
         }
 
-        .header-controls {
+        .header-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
+        /* --- Button System --- */
         .btn {
-            background-color: var(--bg-card);
-            color: var(--text-main);
-            border: 1px solid var(--border-color);
-            padding: 8px 16px;
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border-bright);
+            padding: 7px 14px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.15s ease;
         }
 
-        .btn:hover {
-            background-color: var(--bg-hover);
+        .btn:hover:not(:disabled) {
+            background: var(--bg-hover);
+            border-color: var(--cyan);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         .btn-primary {
-            background-color: var(--accent-blue);
-            border-color: var(--accent-blue);
-        }
-        .btn-primary:hover {
-            background-color: #2563eb;
-        }
-
-        .btn-danger {
-            background-color: var(--accent-red);
-            border-color: var(--accent-red);
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-color: #38bdf8;
             color: white;
         }
-        .btn-danger:hover {
-            background-color: #dc2626;
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+            box-shadow: 0 0 10px var(--cyan-glow);
         }
 
         .btn-success {
-            background-color: var(--accent-green);
-            border-color: var(--accent-green);
+            background: linear-gradient(135deg, #059669, #047857);
+            border-color: #34d399;
+            color: white;
         }
-        .btn-success:hover {
-            background-color: #059669;
+        .btn-success:hover:not(:disabled) {
+            box-shadow: 0 0 10px var(--green-glow);
         }
 
-        .status-badge {
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            border-color: #f87171;
+            color: white;
+        }
+        .btn-danger:hover:not(:disabled) {
+            box-shadow: 0 0 12px var(--red-glow);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            border-color: #fbbf24;
+            color: white;
+        }
+
+        .status-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            background: rgba(239, 68, 68, 0.15);
-            color: var(--accent-red);
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--red);
             border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
-        .status-badge.connected {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-green);
+        .status-pill.connected {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--green);
             border-color: rgba(16, 185, 129, 0.3);
         }
 
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
-            background-color: currentColor;
+            background: currentColor;
+            box-shadow: 0 0 6px currentColor;
         }
 
-        /* --- Main Layout Grid --- */
-        .app-container {
+        /* --- Workspace Grid --- */
+        .app-layout {
             display: grid;
-            grid-template-columns: 320px 1fr 340px;
-            gap: 12px;
-            padding: 12px;
+            grid-template-columns: 340px 1fr 380px;
+            gap: 10px;
+            padding: 10px;
             flex: 1;
             overflow: hidden;
         }
@@ -167,290 +203,443 @@
         .col {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             overflow: hidden;
         }
 
-        .card {
-            background-color: var(--bg-secondary);
-            border: 1px solid var(--border-color);
+        .scrollable {
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .scrollable::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scrollable::-webkit-scrollbar-thumb {
+            background: var(--border-bright);
+            border-radius: 4px;
+        }
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 14px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
             position: relative;
         }
 
-        .card-header {
+        .panel-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            font-size: 13px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 10px;
             padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
         }
 
-        /* --- 3D Attitude & Instruments --- */
-        #attitude3d-container {
+        .tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-family: monospace;
+        }
+        .tag-cyan { background: rgba(0, 243, 255, 0.15); color: var(--cyan); border: 1px solid rgba(0, 243, 255, 0.3); }
+        .tag-green { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .tag-amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .tag-red { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        /* --- 3D Attitude Canvas --- */
+        #attitudeContainer {
             width: 100%;
-            height: 220px;
-            background-color: #000;
+            height: 180px;
+            background: #040711;
             border-radius: 6px;
             position: relative;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border: 1px solid var(--border);
         }
 
         #attitudeCanvas {
             width: 100%;
             height: 100%;
+            display: block;
         }
 
-        .telemetry-row {
+        .metric-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .telemetry-box {
-            background: var(--bg-card);
-            border-radius: 6px;
-            padding: 8px;
-            text-align: center;
-        }
-
-        .telemetry-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .telemetry-value {
-            font-size: 16px;
-            font-weight: 700;
-            font-family: 'Courier New', Courier, monospace;
-            margin-top: 2px;
-        }
-
-        /* --- PID Tuning Section --- */
-        .pid-group {
-            background: var(--bg-card);
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-        }
-
-        .pid-group-title {
-            font-size: 12px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            color: var(--accent-cyan);
-        }
-
-        .pid-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 6px;
-        }
-
-        .pid-item {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .pid-item label {
-            font-size: 10px;
-            color: var(--text-muted);
-            font-weight: 600;
-        }
-
-        .pid-item input[type="number"] {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            color: var(--text-main);
-            padding: 4px 6px;
-            font-size: 12px;
-            font-family: monospace;
-            width: 100%;
-        }
-
-        /* --- Motor Test & Sliders --- */
-        .motor-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 6px;
-        }
-
-        .motor-box {
-            background: var(--bg-card);
-            border-radius: 6px;
-            padding: 8px;
-            text-align: center;
-        }
-
-        .motor-label {
-            font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .motor-slider {
-            width: 100%;
-            accent-color: var(--accent-blue);
-        }
-
-        .motor-val {
-            font-size: 12px;
-            font-weight: bold;
-            color: var(--accent-cyan);
-            font-family: monospace;
-        }
-
-        /* --- Realtime Chart Section --- */
-        .chart-container {
-            flex: 1;
-            position: relative;
-            background: var(--bg-card);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        #realtimeScope {
-            width: 100%;
-            height: 100%;
-        }
-
-        .chart-legend {
-            display: flex;
-            gap: 16px;
-            padding: 6px 10px;
-            font-size: 11px;
-            background: rgba(0,0,0,0.3);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .legend-color {
-            width: 10px;
-            height: 10px;
-            border-radius: 2px;
-        }
-
-        /* --- Console & Command Bar --- */
-        .console-output {
-            flex: 1;
-            background-color: #000;
-            border-radius: 6px;
-            padding: 10px;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 11px;
-            color: #10b981;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            line-height: 1.4;
-            max-height: 180px;
-        }
-
-        .console-input-row {
-            display: flex;
             gap: 6px;
             margin-top: 8px;
         }
 
-        .console-input {
-            flex: 1;
+        .metric-box {
             background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            color: white;
-            padding: 6px 10px;
-            font-family: monospace;
-            font-size: 12px;
-        }
-
-        /* --- Virtual Control Stick / Throttle --- */
-        .stick-container {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            justify-content: space-around;
-            padding: 10px;
-            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: 6px;
+            padding: 6px;
+            text-align: center;
         }
 
-        .throttle-col {
+        .metric-label {
+            font-size: 9px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .metric-val {
+            font-size: 15px;
+            font-weight: 800;
+            font-family: 'SF Mono', Consolas, monospace;
+            margin-top: 2px;
+        }
+
+        /* --- Motor Pulse Micro-Bars --- */
+        .motor-bar-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .m-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 6px 4px;
+            text-align: center;
+        }
+        .m-box-title {
+            font-size: 9px;
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+        .m-box-pulse {
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--cyan);
+            font-family: monospace;
+            margin: 2px 0;
+        }
+        .m-bar-bg {
+            height: 4px;
+            background: #0a0f1d;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+        .m-bar-fill {
+            height: 100%;
+            background: var(--cyan);
+            width: 0%;
+            transition: width 0.05s linear;
+        }
+
+        /* --- PID Tuning Card --- */
+        .pid-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+
+        .pid-header {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .pid-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--cyan);
+        }
+
+        .pid-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 6px;
         }
 
-        .vertical-slider {
-            writing-mode: bt-lr; /* IE */
-            -webkit-appearance: slider-vertical; /* WebKit */
-            width: 24px;
-            height: 120px;
-            accent-color: var(--accent-red);
+        .pid-field {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .scrollable-y {
-            overflow-y: auto;
-            max-height: calc(100vh - 120px);
-            padding-right: 4px;
+        .pid-field label {
+            font-size: 9px;
+            color: var(--text-dim);
+            font-weight: 700;
         }
 
-        .scrollable-y::-webkit-scrollbar {
-            width: 5px;
-        }
-        .scrollable-y::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 3px;
+        .pid-num-row {
+            display: flex;
+            align-items: center;
+            background: var(--bg-input);
+            border: 1px solid var(--border-bright);
+            border-radius: 4px;
+            overflow: hidden;
         }
 
-        .pill-tag {
-            padding: 2px 6px;
+        .pid-num-row input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 4px;
+            text-align: center;
+            outline: none;
+        }
+
+        .step-btn {
+            background: var(--bg-hover);
+            border: none;
+            color: var(--text-muted);
+            width: 16px;
+            font-size: 10px;
+            cursor: pointer;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .step-btn:hover {
+            color: var(--cyan);
+            background: #334155;
+        }
+
+        /* --- AI Advisor Section --- */
+        .advisor-box {
+            background: linear-gradient(145deg, rgba(16, 185, 129, 0.06), rgba(0, 243, 255, 0.04));
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .advisor-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--cyan);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .advisor-select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-bright);
+            color: var(--text);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 8px;
+            outline: none;
+        }
+
+        .advisor-badge-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .rec-pill {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            padding: 3px 6px;
             border-radius: 4px;
             font-size: 10px;
-            font-weight: bold;
+            font-family: monospace;
         }
-        .pill-blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
-        .pill-green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
-        .pill-yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+
+        .advisor-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            margin-bottom: 8px;
+            background: rgba(0,0,0,0.25);
+            padding: 6px 8px;
+            border-radius: 4px;
+            border-left: 2px solid var(--cyan);
+        }
+
+        /* --- Realtime Chart Oscilloscope --- */
+        .scope-container {
+            flex: 1;
+            position: relative;
+            background: #050811;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        #scopeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .scope-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            background: rgba(13, 19, 34, 0.8);
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+        }
+
+        .scope-channels {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .channel-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .channel-toggle input {
+            accent-color: var(--cyan);
+            cursor: pointer;
+        }
+
+        /* --- Terminal / Console --- */
+        .terminal-box {
+            height: 160px;
+            background: #040711;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: 'SF Mono', Consolas, 'Courier New', monospace;
+            font-size: 11px;
+            color: #34d399;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid var(--border);
+            line-height: 1.35;
+        }
+
+        .term-input-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .term-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border-bright);
+            border-radius: 4px;
+            color: white;
+            padding: 5px 8px;
+            font-family: monospace;
+            font-size: 11px;
+            outline: none;
+        }
+        .term-input:focus {
+            border-color: var(--cyan);
+        }
+
+        .quick-chips {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-family: monospace;
+            cursor: pointer;
+        }
+        .chip:hover {
+            color: var(--cyan);
+            border-color: var(--cyan);
+        }
+
+        /* Modal Popup */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            backdrop-filter: blur(4px);
+        }
+        .modal-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--cyan);
+            border-radius: 8px;
+            width: 520px;
+            max-width: 90vw;
+            padding: 16px;
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: 800;
+            color: var(--cyan);
+            font-size: 14px;
+        }
+        .code-block {
+            background: #050811;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            color: #e2e8f0;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 240px;
+            overflow-y: auto;
+            white-space: pre;
+            user-select: text;
+        }
     </style>
 </head>
 <body>
 
     <!-- Header -->
     <header>
-        <div class="brand">
-            <div class="brand-icon">🛸</div>
+        <div class="brand-box">
+            <div class="brand-logo">⚡</div>
             <div>
-                <div class="brand-title">DRONE TUNER & GCS</div>
-                <div class="brand-subtitle">ESP32-S3 Flight Controller Station</div>
+                <div class="brand-title">ESP32-S3 GCS TUNER & PID ADVISOR</div>
+                <div class="brand-sub">Wired High-Speed Flight Telemetry & Live Dual-Loop Tuning</div>
             </div>
         </div>
 
-        <div class="header-controls">
-            <select id="baudRateSelect" class="btn" style="padding: 7px 10px;">
+        <div class="header-actions">
+            <select id="baudSelect" class="btn" style="padding: 6px 8px;">
                 <option value="115200" selected>115200 Baud</option>
                 <option value="230400">230400 Baud</option>
                 <option value="460800">460800 Baud</option>
@@ -458,305 +647,480 @@
             </select>
 
             <button id="btnConnect" class="btn btn-primary" onclick="toggleConnect()">
-                🔌 Kết nối ESP32-S3
+                🔌 Kết nối ESP32-S3 (USB)
             </button>
 
-            <div id="connStatus" class="status-badge">
+            <div id="connStatusPill" class="status-pill">
                 <div class="status-dot"></div>
                 <span id="connStatusText">Chưa kết nối</span>
             </div>
 
-            <button id="btnEmergencyDisarm" class="btn btn-danger" onclick="sendEmergencyStop()">
-                🚨 EMERGENCY DISARM (ESC)
+            <button class="btn btn-danger" onclick="emergencyStop()">
+                🚨 EMERGENCY DISARM
             </button>
         </div>
     </header>
 
-    <!-- App Container Grid -->
-    <div class="app-container">
+    <!-- App Layout 3-Column Grid -->
+    <div class="app-layout">
 
-        <!-- CỘT 1: 3D Attitude, Dữ liệu Cảm biến, Điều khiển Ga/Arm -->
-        <div class="col scrollable-y">
+        <!-- CỘT 1: 3D Attitude, Dữ liệu Telemetry & An toàn Động cơ -->
+        <div class="col scrollable">
 
-            <!-- 3D Drone Visualizer -->
-            <div class="card">
-                <div class="card-header">
-                    <span>3D Drone Attitude</span>
-                    <span id="fpsCounter" class="pill-tag pill-blue">0 Hz</span>
+            <!-- 3D Drone Attitude HUD -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>3D Drone Attitude HUD</span>
+                    <span id="hzBadge" class="tag tag-cyan">0 Hz</span>
                 </div>
-                <div id="attitude3d-container">
+                <div id="attitudeContainer">
                     <canvas id="attitudeCanvas"></canvas>
                 </div>
-                <div class="telemetry-row">
-                    <div class="telemetry-box">
-                        <div class="telemetry-label">Roll (X)</div>
-                        <div class="telemetry-value" id="valRoll" style="color: var(--accent-cyan)">0.0°</div>
+
+                <div class="metric-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Roll (X)</div>
+                        <div class="metric-val" id="valRoll" style="color: var(--cyan);">0.0°</div>
                     </div>
-                    <div class="telemetry-box">
-                        <div class="telemetry-label">Pitch (Y)</div>
-                        <div class="telemetry-value" id="valPitch" style="color: var(--accent-yellow)">0.0°</div>
+                    <div class="metric-box">
+                        <div class="metric-label">Pitch (Y)</div>
+                        <div class="metric-val" id="valPitch" style="color: var(--amber);">0.0°</div>
                     </div>
-                    <div class="telemetry-box">
-                        <div class="telemetry-label">Yaw (Z)</div>
-                        <div class="telemetry-value" id="valYaw" style="color: var(--accent-green)">0.0°</div>
+                    <div class="metric-box">
+                        <div class="metric-label">Yaw (Z)</div>
+                        <div class="metric-val" id="valYaw" style="color: var(--green);">0.0°</div>
+                    </div>
+                </div>
+
+                <div class="metric-grid" style="margin-top: 6px;">
+                    <div class="metric-box">
+                        <div class="metric-label">Gyro Roll Rate</div>
+                        <div class="metric-val" id="valRateRoll" style="font-size: 13px;">0.0°/s</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Gyro Pitch Rate</div>
+                        <div class="metric-val" id="valRatePitch" style="font-size: 13px;">0.0°/s</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Gyro Yaw Rate</div>
+                        <div class="metric-val" id="valRateYaw" style="font-size: 13px;">0.0°/s</div>
+                    </div>
+                </div>
+
+                <!-- Motor Output Micro-bars -->
+                <div style="margin-top: 10px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-transform: uppercase;">
+                    Xung ngõ ra 4 Động cơ (PCA9685)
+                </div>
+                <div class="motor-bar-grid">
+                    <div class="m-box">
+                        <div class="m-box-title">M1 (FR-CCW)</div>
+                        <div class="m-box-pulse" id="m1Pulse">1000 µs</div>
+                        <div class="m-bar-bg"><div class="m-bar-fill" id="m1Bar"></div></div>
+                    </div>
+                    <div class="m-box">
+                        <div class="m-box-title">M2 (FL-CW)</div>
+                        <div class="m-box-pulse" id="m2Pulse">1000 µs</div>
+                        <div class="m-bar-bg"><div class="m-bar-fill" id="m2Bar"></div></div>
+                    </div>
+                    <div class="m-box">
+                        <div class="m-box-title">M3 (RR-CW)</div>
+                        <div class="m-box-pulse" id="m3Pulse">1000 µs</div>
+                        <div class="m-bar-bg"><div class="m-bar-fill" id="m3Bar"></div></div>
+                    </div>
+                    <div class="m-box">
+                        <div class="m-box-title">M4 (RL-CCW)</div>
+                        <div class="m-box-pulse" id="m4Pulse">1000 µs</div>
+                        <div class="m-bar-bg"><div class="m-bar-fill" id="m4Bar"></div></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Trạng thái Cảm biến & Độ cao -->
-            <div class="card">
-                <div class="card-header">
-                    <span>Cảm biến & Khí áp (BMP280 / GPS)</span>
-                </div>
-                <div class="telemetry-row" style="grid-template-columns: 1fr 1fr;">
-                    <div class="telemetry-box">
-                        <div class="telemetry-label">Độ cao (Alt)</div>
-                        <div class="telemetry-value" id="valAltitude">0.00 m</div>
-                    </div>
-                    <div class="telemetry-box">
-                        <div class="telemetry-label">Nhiệt độ (Temp)</div>
-                        <div class="telemetry-value" id="valTemperature">-- °C</div>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 6px; margin-top: 10px;">
-                    <button class="btn" style="flex: 1; font-size: 11px;" onclick="sendCommand('CALIB_IMU')">⚖️ Calib IMU (MPU6050)</button>
-                    <button class="btn" style="flex: 1; font-size: 11px;" onclick="sendCommand('SCAN_I2C')">🔍 Quét I2C Bus</button>
-                </div>
-            </div>
-
-            <!-- Bảng Điều khiển An toàn & Ga Tethered -->
-            <div class="card">
-                <div class="card-header">
-                    <span>Tethered Control (Test bàn)</span>
-                    <span id="armBadge" class="pill-tag pill-yellow">DISARMED</span>
+            <!-- Tethered Ga & An toàn -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Điều khiển Dây Cáp (Tethered Throttle)</span>
+                    <span id="armStateTag" class="tag tag-amber">DISARMED</span>
                 </div>
 
-                <div class="stick-container">
-                    <div class="throttle-col">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--accent-red)">THROTTLE</div>
-                        <input type="range" id="masterThrottle" class="vertical-slider" min="0" max="30" value="0" oninput="updateThrottle(this.value)">
-                        <div id="throttlePercent" style="font-size: 14px; font-weight: bold; font-family: monospace;">0%</div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+                        <input type="range" id="throttleSlider" min="0" max="30" value="0" style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; height: 100px; accent-color: var(--red);" oninput="onThrottleChange(this.value)">
+                        <span id="throttleText" style="font-size: 13px; font-weight: bold; font-family: monospace; margin-top: 4px;">0%</span>
                     </div>
+
                     <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-                        <button id="btnArmToggle" class="btn btn-danger" style="width: 100%; justify-content: center; padding: 12px;" onclick="toggleArm()">
+                        <button id="btnArmToggle" class="btn btn-danger" style="justify-content: center; padding: 10px;" onclick="toggleArm()">
                             ⚡ ARM MOTOR
                         </button>
                         <div style="font-size: 10px; color: var(--text-muted); line-height: 1.3;">
-                            * An toàn: Throttle phải = 0% mới cho ARM.<br>
-                            * Giới hạn bàn test: Max 30% ga.<br>
-                            * Bấm <b>SPACEBAR</b> hoặc <b>ESC</b> để ngắt khẩn cấp.
+                            🛡️ <b>Quy tắc An toàn bàn test:</b><br>
+                            • Throttle phải ở 0% mới cho phép ARM.<br>
+                            • Giới hạn bàn thử: Max 30% ga.<br>
+                            • Bấm <b>SPACEBAR</b> để ngắt khẩn cấp.
                         </div>
                     </div>
+                </div>
+
+                <div style="display: flex; gap: 6px; margin-top: 10px;">
+                    <button class="btn" style="flex: 1; font-size: 10px;" onclick="sendCmd('CALIB GYRO')">⚖️ Calib Gyro</button>
+                    <button class="btn" style="flex: 1; font-size: 10px;" onclick="sendCmd('CALIB BARO')">🏔️ Set Zero Baro</button>
+                    <button class="btn" style="flex: 1; font-size: 10px;" onclick="sendCmd('CALIB MAG')">🧭 Calib Mag</button>
                 </div>
             </div>
 
-        </div>
-
-        <!-- CỘT 2: Đồ thị Realtime Scope & Telemetry Waveform -->
-        <div class="col">
-            <div class="card" style="flex: 1;">
-                <div class="card-header">
-                    <span>Realtime Telemetry Oscilloscope</span>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="clearScope()">🧹 Xóa đồ thị</button>
-                        <button id="btnPauseScope" class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="togglePauseScope()">⏸ Tạm dừng</button>
-                    </div>
+            <!-- Test 4 Động cơ Độc lập (Không cánh quạt) -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Kiểm tra Motor Độc lập (Test ESC)</span>
                 </div>
 
-                <div class="chart-legend">
-                    <div class="legend-item"><div class="legend-color" style="background: var(--accent-cyan);"></div>Roll (°)</div>
-                    <div class="legend-item"><div class="legend-color" style="background: var(--accent-yellow);"></div>Pitch (°)</div>
-                    <div class="legend-item"><div class="legend-color" style="background: var(--accent-green);"></div>Yaw (°)</div>
-                    <div class="legend-item"><div class="legend-color" style="background: #ec4899;"></div>Target Roll</div>
-                    <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Target Pitch</div>
-                </div>
-
-                <div class="chart-container">
-                    <canvas id="realtimeScope"></canvas>
-                </div>
-            </div>
-
-            <!-- Console Log & Terminal -->
-            <div class="card" style="height: 190px;">
-                <div class="card-header">
-                    <span>Serial Terminal & Lệnh</span>
-                    <button class="btn" style="padding: 2px 6px; font-size: 10px;" onclick="clearConsole()">Xóa Log</button>
-                </div>
-                <div id="consoleOutput" class="console-output">ESP32-S3 Drone Tuner sẵn sàng. Hãy bấm 'Kết nối ESP32-S3' để bắt đầu...</div>
-                <div class="console-input-row">
-                    <input type="text" id="consoleInput" class="console-input" placeholder="Gõ lệnh (ARM, DISARM, STATUS, SET PID ROLL 1.2 0.05 0.3)..." onkeydown="handleConsoleKey(event)">
-                    <button class="btn btn-primary" onclick="sendConsoleInput()">Gửi</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- CỘT 3: PID Tuning Panel & Test 4 Động cơ -->
-        <div class="col scrollable-y">
-
-            <!-- PID Tuning Parameters -->
-            <div class="card">
-                <div class="card-header">
-                    <span>Bộ điều khiển PID (Tuning)</span>
-                    <button class="btn btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="sendAllPID()">💾 Lưu vào Drone</button>
-                </div>
-
-                <!-- ROLL PID -->
-                <div class="pid-group">
-                    <div class="pid-group-title">
-                        <span>ROLL AXIS (Trục Ngang)</span>
-                    </div>
-                    <div class="pid-controls">
-                        <div class="pid-item">
-                            <label>Kp (Proportional)</label>
-                            <input type="number" id="rollKp" step="0.01" value="1.20">
-                        </div>
-                        <div class="pid-item">
-                            <label>Ki (Integral)</label>
-                            <input type="number" id="rollKi" step="0.005" value="0.04">
-                        </div>
-                        <div class="pid-item">
-                            <label>Kd (Derivative)</label>
-                            <input type="number" id="rollKd" step="0.01" value="0.25">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- PITCH PID -->
-                <div class="pid-group">
-                    <div class="pid-group-title">
-                        <span>PITCH AXIS (Trục Dọc)</span>
-                    </div>
-                    <div class="pid-controls">
-                        <div class="pid-item">
-                            <label>Kp (Proportional)</label>
-                            <input type="number" id="pitchKp" step="0.01" value="1.20">
-                        </div>
-                        <div class="pid-item">
-                            <label>Ki (Integral)</label>
-                            <input type="number" id="pitchKi" step="0.005" value="0.04">
-                        </div>
-                        <div class="pid-item">
-                            <label>Kd (Derivative)</label>
-                            <input type="number" id="pitchKd" step="0.01" value="0.25">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- YAW PID -->
-                <div class="pid-group">
-                    <div class="pid-group-title">
-                        <span>YAW AXIS (Hướng Mũi)</span>
-                    </div>
-                    <div class="pid-controls">
-                        <div class="pid-item">
-                            <label>Kp (Proportional)</label>
-                            <input type="number" id="yawKp" step="0.01" value="2.00">
-                        </div>
-                        <div class="pid-item">
-                            <label>Ki (Integral)</label>
-                            <input type="number" id="yawKi" step="0.005" value="0.02">
-                        </div>
-                        <div class="pid-item">
-                            <label>Kd (Derivative)</label>
-                            <input type="number" id="yawKd" step="0.01" value="0.00">
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 6px; margin-top: 4px;">
-                    <button class="btn" style="flex: 1; font-size: 11px;" onclick="sendCommand('GET_PID')">🔄 Đọc từ Drone</button>
-                    <button class="btn" style="flex: 1; font-size: 11px;" onclick="resetPIDDefaults()">↺ Mặc định</button>
-                </div>
-            </div>
-
-            <!-- Test riêng 4 động cơ qua PCA9685 -->
-            <div class="card">
-                <div class="card-header">
-                    <span>Test 4 Động cơ (PCA9685)</span>
-                </div>
-
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px; border-radius: 4px; font-size: 10px; color: #fca5a5; margin-bottom: 8px;">
-                    ⚠️ CẢNH BÁO: Phải tháo cánh quạt trước khi kéo thanh trượt test từng động cơ!
-                </div>
-
-                <label style="font-size: 11px; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; cursor: pointer;">
-                    <input type="checkbox" id="chkPropsOff" onchange="toggleMotorTestLock()">
-                    <span>Tôi đã tháo toàn bộ cánh quạt</span>
+                <label style="font-size: 11px; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; cursor: pointer; color: #fca5a5;">
+                    <input type="checkbox" id="chkPropsRemoved" onchange="toggleMotorTestLock()">
+                    <span>⚠️ Tôi cam kết ĐÃ THÁO CÁNH QUẠT</span>
                 </label>
 
-                <div class="motor-grid">
-                    <!-- Motor 1 (Front Right CCW) -->
-                    <div class="motor-box">
-                        <div class="motor-label">M1 (Trước Phải - CCW)</div>
-                        <input type="range" id="m1Slider" class="motor-slider" min="0" max="100" value="0" disabled oninput="testMotor(1, this.value)">
-                        <div class="motor-val" id="m1Val">0%</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: bold;">M1 (Trước Phải)</div>
+                        <input type="range" id="m1TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(1, this.value)">
+                        <div id="m1TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
-                    <!-- Motor 2 (Front Left CW) -->
-                    <div class="motor-box">
-                        <div class="motor-label">M2 (Trước Trái - CW)</div>
-                        <input type="range" id="m2Slider" class="motor-slider" min="0" max="100" value="0" disabled oninput="testMotor(2, this.value)">
-                        <div class="motor-val" id="m2Val">0%</div>
+                    <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: bold;">M2 (Trước Trái)</div>
+                        <input type="range" id="m2TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(2, this.value)">
+                        <div id="m2TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
-                    <!-- Motor 3 (Rear Right CW) -->
-                    <div class="motor-box">
-                        <div class="motor-label">M3 (Sau Phải - CW)</div>
-                        <input type="range" id="m3Slider" class="motor-slider" min="0" max="100" value="0" disabled oninput="testMotor(3, this.value)">
-                        <div class="motor-val" id="m3Val">0%</div>
+                    <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: bold;">M3 (Sau Phải)</div>
+                        <input type="range" id="m3TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(3, this.value)">
+                        <div id="m3TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
-                    <!-- Motor 4 (Rear Left CCW) -->
-                    <div class="motor-box">
-                        <div class="motor-label">M4 (Sau Trái - CCW)</div>
-                        <input type="range" id="m4Slider" class="motor-slider" min="0" max="100" value="0" disabled oninput="testMotor(4, this.value)">
-                        <div class="motor-val" id="m4Val">0%</div>
+                    <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: bold;">M4 (Sau Trái)</div>
+                        <input type="range" id="m4TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(4, this.value)">
+                        <div id="m4TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
                 </div>
 
-                <button class="btn btn-danger" style="margin-top: 10px; font-size: 11px; justify-content: center;" onclick="stopAllMotors()">
-                    🛑 Dừng tất cả Motor
+                <button class="btn btn-danger" style="margin-top: 8px; font-size: 10px; justify-content: center;" onclick="stopAllTestMotors()">
+                    🛑 Dừng toàn bộ Motor Test
                 </button>
+            </div>
+
+        </div>
+
+        <!-- CỘT 2: Realtime Oscilloscope & Serial Terminal -->
+        <div class="col">
+
+            <!-- Realtime Oscilloscope -->
+            <div class="panel" style="flex: 1;">
+                <div class="panel-header">
+                    <span>Đồ thị Sóng Realtime (Oscilloscope 250Hz)</span>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn" style="padding: 2px 6px; font-size: 10px;" onclick="clearScope()">🧹 Xóa</button>
+                        <button id="btnPauseScope" class="btn" style="padding: 2px 6px; font-size: 10px;" onclick="toggleScopePause()">⏸ Dừng</button>
+                    </div>
+                </div>
+
+                <div class="scope-toolbar">
+                    <div class="scope-channels">
+                        <label class="channel-toggle"><input type="checkbox" id="chkRoll" checked><span style="color: var(--cyan);">■ Roll</span></label>
+                        <label class="channel-toggle"><input type="checkbox" id="chkPitch" checked><span style="color: var(--amber);">■ Pitch</span></label>
+                        <label class="channel-toggle"><input type="checkbox" id="chkYaw"><span style="color: var(--green);">■ Yaw</span></label>
+                        <label class="channel-toggle"><input type="checkbox" id="chkRateRoll" checked><span style="color: #ec4899;">■ Rate Roll</span></label>
+                        <label class="channel-toggle"><input type="checkbox" id="chkRatePitch" checked><span style="color: #8b5cf6;">■ Rate Pitch</span></label>
+                    </div>
+                    <div style="color: var(--text-dim); font-family: monospace; font-size: 10px;">
+                        Thang đo: ±45° / ±200°/s
+                    </div>
+                </div>
+
+                <div class="scope-container">
+                    <canvas id="scopeCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Serial Terminal -->
+            <div class="panel" style="height: 185px;">
+                <div class="panel-header">
+                    <span>Serial Terminal & Lệnh Trực tiếp</span>
+                    <button class="btn" style="padding: 2px 6px; font-size: 10px;" onclick="clearTerminal()">Xóa Log</button>
+                </div>
+
+                <div id="terminalOutput" class="terminal-box">ESP32-S3 Flight Controller Ground Station sẵn sàng. Bấm 'Kết nối ESP32-S3 (USB)' để bắt đầu nhận Telemetry...</div>
+
+                <div class="term-input-row">
+                    <input type="text" id="terminalInput" class="term-input" placeholder="Gõ lệnh (SET PID ROLL 1.2 0.04 0.035, CALIB GYRO, ARM, DISARM)..." onkeydown="handleTermKey(event)">
+                    <button class="btn btn-primary" onclick="sendTerminalInput()">Gửi</button>
+                </div>
+
+                <div class="quick-chips">
+                    <span class="chip" onclick="sendCmd('PING')">PING</span>
+                    <span class="chip" onclick="sendCmd('CALIB GYRO')">CALIB GYRO</span>
+                    <span class="chip" onclick="sendCmd('SET MODE ANGLE')">MODE ANGLE</span>
+                    <span class="chip" onclick="sendCmd('SET MODE ACRO')">MODE ACRO</span>
+                    <span class="chip" onclick="sendCmd('DISARM')">DISARM</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- CỘT 3: AI PID Tuning Advisor & Bộ thông số Dual-Loop PID -->
+        <div class="col scrollable">
+
+            <!-- AI PID TUNING ADVISOR & CHẨN ĐOÁN TRIỆU CHỨNG -->
+            <div class="panel" style="border-color: rgba(0, 243, 255, 0.3);">
+                <div class="panel-header">
+                    <span style="color: var(--cyan);">💡 AI PID Tuning Advisor</span>
+                    <span class="tag tag-green">AI ASSISTANT</span>
+                </div>
+
+                <div class="advisor-box">
+                    <div class="advisor-title">🎯 1. Chọn Cấu hình Drone của bạn</div>
+                    <select id="presetSelect" class="advisor-select" onchange="applyDronePreset(this.value)">
+                        <option value="f450_3s" selected>🚁 F450 Quad-X (A2212 1000KV + Cánh 1045 + 3S LiPo)</option>
+                        <option value="freestyle_5in">⚡ 5-Inch Freestyle (2306 2400KV + Cánh 5045 + 4S)</option>
+                        <option value="cinewhoop_3in">🎥 CineWhoop 3-Inch (1408 3600KV + Bảo vệ cánh)</option>
+                        <option value="micro_2s">🏠 Micro Quad 2S (1103 8000KV - Bay trong nhà)</option>
+                    </select>
+
+                    <div class="advisor-title">🩺 2. Chẩn đoán theo Triệu chứng bay thực tế</div>
+                    <select id="symptomSelect" class="advisor-select" onchange="analyzeSymptom(this.value)">
+                        <option value="none">-- Chọn triệu chứng đang gặp phải khi test --</option>
+                        <option value="fast_wobble">⚡ Rung lắc nhanh bần bật (>15Hz) khi tăng ga</option>
+                        <option value="slow_wobble">🌊 Bồng bềnh dao động chậm (1-3Hz) qua lại</option>
+                        <option value="sluggish">🐢 Phản ứng chậm, lì đòn, khó giữ góc nghiêng</option>
+                        <option value="bounce_back">💥 Bị giật nảy ngược khi buông tay gạt điều khiển</option>
+                        <option value="angle_drift">🧭 Góc bay bị trôi dần theo thời gian khi thả tay</option>
+                        <option value="hot_motors">🔥 Động cơ rất nóng sau 1 phút bay</option>
+                        <option value="punchout_dip">🚀 Khi vọt ga mạnh (Punch-out) mũi bị chúc xuống</option>
+                        <option value="yaw_drift">🌀 Xoay hướng mũi (Yaw) bị trôi hoặc giật cục</option>
+                    </select>
+
+                    <div id="advisorAdviceBox" class="advisor-desc">
+                        <b>Gợi ý khởi điểm:</b> Với cấu hình F450 cánh 1045 lớn, quán tính cao nên giữ <b>Kd ở mức thấp (0.035)</b> để tránh nóng động cơ và rung sốc, <b>Kp = 1.20</b> để phản xạ dứt khoát.
+                    </div>
+
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-success" style="flex: 1; font-size: 11px;" onclick="applyAdvisorPids()">
+                            ✨ Nạp gợi ý vào bảng Tune
+                        </button>
+                        <button class="btn" style="font-size: 11px;" onclick="openCppExportModal()">
+                            📋 Xuất mã C++
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BẢNG ĐIỀU CHỈNH PID DUAL-LOOP -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Bảng thông số Dual-Loop PID (Live RAM)</span>
+                    <button class="btn btn-primary" style="padding: 2px 8px; font-size: 10px;" onclick="sendAllPids()">
+                        💾 Gửi xuống Drone
+                    </button>
+                </div>
+
+                <!-- ROLL RATE (Inner Loop 250Hz) -->
+                <div class="pid-card">
+                    <div class="pid-header">
+                        <span class="pid-title">ROLL RATE (Vận tốc góc Roll - 250Hz)</span>
+                        <button class="btn" style="padding: 1px 6px; font-size: 9px;" onclick="sendSinglePid('ROLL_RATE')">Gửi Roll</button>
+                    </div>
+                    <div class="pid-inputs">
+                        <div class="pid-field">
+                            <label>Kp (Phản xạ)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('rollRateKp', -0.05)">-</button>
+                                <input type="number" id="rollRateKp" step="0.01" value="1.20">
+                                <button class="step-btn" onclick="stepPid('rollRateKp', 0.05)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Ki (Triệt trôi)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('rollRateKi', -0.005)">-</button>
+                                <input type="number" id="rollRateKi" step="0.005" value="0.040">
+                                <button class="step-btn" onclick="stepPid('rollRateKi', 0.005)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Kd (Dập tắt)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('rollRateKd', -0.005)">-</button>
+                                <input type="number" id="rollRateKd" step="0.005" value="0.035">
+                                <button class="step-btn" onclick="stepPid('rollRateKd', 0.005)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PITCH RATE (Inner Loop 250Hz) -->
+                <div class="pid-card">
+                    <div class="pid-header">
+                        <span class="pid-title">PITCH RATE (Vận tốc góc Pitch - 250Hz)</span>
+                        <button class="btn" style="padding: 1px 6px; font-size: 9px;" onclick="sendSinglePid('PITCH_RATE')">Gửi Pitch</button>
+                    </div>
+                    <div class="pid-inputs">
+                        <div class="pid-field">
+                            <label>Kp (Phản xạ)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('pitchRateKp', -0.05)">-</button>
+                                <input type="number" id="pitchRateKp" step="0.01" value="1.20">
+                                <button class="step-btn" onclick="stepPid('pitchRateKp', 0.05)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Ki (Triệt trôi)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('pitchRateKi', -0.005)">-</button>
+                                <input type="number" id="pitchRateKi" step="0.005" value="0.040">
+                                <button class="step-btn" onclick="stepPid('pitchRateKi', 0.005)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Kd (Dập tắt)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('pitchRateKd', -0.005)">-</button>
+                                <input type="number" id="pitchRateKd" step="0.005" value="0.035">
+                                <button class="step-btn" onclick="stepPid('pitchRateKd', 0.005)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- YAW RATE (Inner Loop 250Hz) -->
+                <div class="pid-card">
+                    <div class="pid-header">
+                        <span class="pid-title">YAW RATE (Vận tốc xoay Mũi - 250Hz)</span>
+                        <button class="btn" style="padding: 1px 6px; font-size: 9px;" onclick="sendSinglePid('YAW_RATE')">Gửi Yaw</button>
+                    </div>
+                    <div class="pid-inputs">
+                        <div class="pid-field">
+                            <label>Kp (Phản xạ)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('yawRateKp', -0.1)">-</button>
+                                <input type="number" id="yawRateKp" step="0.05" value="2.50">
+                                <button class="step-btn" onclick="stepPid('yawRateKp', 0.1)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Ki (Triệt trôi)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('yawRateKi', -0.01)">-</button>
+                                <input type="number" id="yawRateKi" step="0.005" value="0.080">
+                                <button class="step-btn" onclick="stepPid('yawRateKi', 0.01)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Kd (Thường = 0)</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('yawRateKd', -0.005)">-</button>
+                                <input type="number" id="yawRateKd" step="0.005" value="0.000">
+                                <button class="step-btn" onclick="stepPid('yawRateKd', 0.005)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ANGLE LOOP (Outer Loop) -->
+                <div class="pid-card" style="background: rgba(168, 85, 247, 0.05); border-color: rgba(168, 85, 247, 0.25);">
+                    <div class="pid-header">
+                        <span class="pid-title" style="color: var(--purple);">ANGLE LOOP (Vòng ngoài Tự cân bằng Euler)</span>
+                    </div>
+                    <div class="pid-inputs" style="grid-template-columns: 1fr 1fr;">
+                        <div class="pid-field">
+                            <label>Roll Angle Kp</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('rollAngleKp', -0.2)">-</button>
+                                <input type="number" id="rollAngleKp" step="0.1" value="4.50">
+                                <button class="step-btn" onclick="stepPid('rollAngleKp', 0.2)">+</button>
+                            </div>
+                        </div>
+                        <div class="pid-field">
+                            <label>Pitch Angle Kp</label>
+                            <div class="pid-num-row">
+                                <button class="step-btn" onclick="stepPid('pitchAngleKp', -0.2)">-</button>
+                                <input type="number" id="pitchAngleKp" step="0.1" value="4.50">
+                                <button class="step-btn" onclick="stepPid('pitchAngleKp', 0.2)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                    <button class="btn btn-success" style="flex: 1; font-size: 11px;" onclick="sendAllPids()">
+                        ⚡ Áp dụng tất cả vào RAM Drone
+                    </button>
+                    <button class="btn" style="font-size: 11px;" onclick="resetToProjectDefaults()">
+                        ↺ Trả về Mặc định
+                    </button>
+                </div>
             </div>
 
         </div>
 
     </div>
 
-    <!-- SCRIPT LOGIC: WebSerial + 3D Canvas + Realtime Scope -->
+    <!-- Modal Xuất Code C++ cho MotorMixer.cpp -->
+    <div id="exportModal" class="modal-overlay" onclick="closeModalOnOutside(event)">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span>📋 MÃ C++ ĐỂ LƯU VÀO FLASH (MotorMixer.cpp)</span>
+                <button class="btn" style="padding: 2px 8px;" onclick="closeExportModal()">✕</button>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                Sao chép đoạn mã dưới đây dán vào hàm <code>MotorMixer::begin()</code> trong file <code>src/control/MotorMixer.cpp</code> để lưu thông số vĩnh viễn vào Flash:
+            </p>
+            <div id="cppCodeOutput" class="code-block"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;">
+                <button class="btn btn-primary" onclick="copyCppCode()">📄 Sao chép Code</button>
+                <button class="btn" onclick="closeExportModal()">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT LOGIC -->
     <script>
-        // --- WebSerial State ---
+        // =====================================================================
+        // TRẠNG THÁI TOÀN CỤC & BIẾN WEBSERIAL
+        // =====================================================================
         let port = null;
         let reader = null;
         let writer = null;
         let isConnected = false;
         let isArmed = false;
         let packetCount = 0;
-        let lastFpsTime = Date.now();
+        let lastFpsTime = performance.now();
 
-        // --- Telemetry State ---
-        let currentTelemetry = {
+        // Telemetry hiện tại từ Drone
+        let telemetry = {
             roll: 0.0,
             pitch: 0.0,
             yaw: 0.0,
-            targetRoll: 0.0,
-            targetPitch: 0.0,
+            rateRoll: 0.0,
+            ratePitch: 0.0,
+            rateYaw: 0.0,
+            throttle: 0.0,
+            m1: 1000, m2: 1000, m3: 1000, m4: 1000,
             altitude: 0.0,
-            temp: 25.0,
-            m1: 0, m2: 0, m3: 0, m4: 0,
-            armed: false
+            isArmed: false,
+            failsafeState: 0
         };
 
-        // --- Realtime Scope Buffer ---
-        const SCOPE_MAX_POINTS = 250;
-        let scopeData = {
-            roll: new Array(SCOPE_MAX_POINTS).fill(0),
-            pitch: new Array(SCOPE_MAX_POINTS).fill(0),
-            yaw: new Array(SCOPE_MAX_POINTS).fill(0),
-            targetRoll: new Array(SCOPE_MAX_POINTS).fill(0),
-            targetPitch: new Array(SCOPE_MAX_POINTS).fill(0)
+        // Oscilloscope Buffer
+        const MAX_POINTS = 300;
+        let scopeBuffer = {
+            roll: new Array(MAX_POINTS).fill(0),
+            pitch: new Array(MAX_POINTS).fill(0),
+            yaw: new Array(MAX_POINTS).fill(0),
+            rateRoll: new Array(MAX_POINTS).fill(0),
+            ratePitch: new Array(MAX_POINTS).fill(0)
         };
         let isScopePaused = false;
 
         // =====================================================================
-        // WEBSERIAL CONNECTION
+        // WEBSERIAL API: KẾT NỐI & ĐỌC GÓI TIN TỪ ESP32-S3
         // =====================================================================
         async function toggleConnect() {
             if (isConnected) {
@@ -768,341 +1132,386 @@
 
         async function connect() {
             if (!("serial" in navigator)) {
-                alert("Trình duyệt của bạn không hỗ trợ WebSerial API. Vui lòng dùng Google Chrome, Microsoft Edge, Opera hoặc Brave trên máy tính!");
+                alert("Trình duyệt không hỗ trợ WebSerial API. Vui lòng dùng Google Chrome, Microsoft Edge, Opera hoặc Brave trên máy tính!");
                 return;
             }
 
             try {
-                const baud = parseInt(document.getElementById('baudRateSelect').value);
+                const baud = parseInt(document.getElementById('baudSelect').value);
                 port = await navigator.serial.requestPort();
                 await port.open({ baudRate: baud });
 
                 const textDecoder = new TextDecoderStream();
-                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                port.readable.pipeTo(textDecoder.writable);
                 reader = textDecoder.readable.getReader();
 
                 const textEncoder = new TextEncoderStream();
-                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                textEncoder.readable.pipeTo(port.writable);
                 writer = textEncoder.writable.getWriter();
 
                 isConnected = true;
-                updateConnectionUI(true);
-                logConsole("Đã kết nối thành công với ESP32-S3 ở baudrate " + baud + "!");
+                updateConnectStatusUI(true);
+                logTerm(`✅ Đã mở cổng Serial thành công ở ${baud} baud!`);
 
                 readSerialLoop();
             } catch (err) {
-                logConsole("Lỗi kết nối Serial: " + err.message);
-                updateConnectionUI(false);
+                logTerm(`❌ Lỗi kết nối Serial: ${err.message}`);
+                updateConnectStatusUI(false);
             }
         }
 
         async function disconnect() {
             try {
-                if (reader) {
-                    await reader.cancel();
-                    reader = null;
-                }
-                if (writer) {
-                    await writer.close();
-                    writer = null;
-                }
-                if (port) {
-                    await port.close();
-                    port = null;
-                }
+                if (reader) { await reader.cancel(); reader = null; }
+                if (writer) { await writer.close(); writer = null; }
+                if (port) { await port.close(); port = null; }
             } catch (err) {
                 console.error(err);
             }
             isConnected = false;
-            updateConnectionUI(false);
-            logConsole("Đã ngắt kết nối.");
+            updateConnectStatusUI(false);
+            logTerm("🔌 Đã ngắt kết nối Serial.");
         }
 
-        function updateConnectionUI(connected) {
+        function updateConnectStatusUI(connected) {
             const btn = document.getElementById('btnConnect');
-            const badge = document.getElementById('connStatus');
+            const pill = document.getElementById('connStatusPill');
             const text = document.getElementById('connStatusText');
 
             if (connected) {
                 btn.innerText = "❌ Ngắt kết nối";
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-hover');
-                badge.classList.add('connected');
-                text.innerText = "Đã kết nối";
+                btn.className = "btn btn-danger";
+                pill.classList.add('connected');
+                text.innerText = "Đang kết nối (Live)";
             } else {
-                btn.innerText = "🔌 Kết nối ESP32-S3";
-                btn.classList.add('btn-primary');
-                badge.classList.remove('connected');
+                btn.innerText = "🔌 Kết nối ESP32-S3 (USB)";
+                btn.className = "btn btn-primary";
+                pill.classList.remove('connected');
                 text.innerText = "Chưa kết nối";
             }
         }
 
-        // =====================================================================
-        // SERIAL READ & PARSING
-        // =====================================================================
-        let lineBuffer = "";
-
+        let serialLineBuffer = "";
         async function readSerialLoop() {
             try {
                 while (isConnected && reader) {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
-                        lineBuffer += value;
-                        let lines = lineBuffer.split("\n");
-                        lineBuffer = lines.pop(); // Giữ lại phần chưa có newline
+                        serialLineBuffer += value;
+                        let lines = serialLineBuffer.split("\n");
+                        serialLineBuffer = lines.pop(); // Giữ phần dư chưa có newline
 
                         for (let line of lines) {
                             line = line.trim();
                             if (line.length > 0) {
-                                parseSerialLine(line);
+                                parseSerialPacket(line);
                             }
                         }
                     }
                 }
             } catch (err) {
-                logConsole("Mất kết nối Serial: " + err.message);
-                updateConnectionUI(false);
+                logTerm(`⚠️ Mất luồng Serial: ${err.message}`);
+                updateConnectStatusUI(false);
             }
         }
 
-        function parseSerialLine(line) {
-            // Kiểm tra gói tin JSON Telemetry: {"r":0.5,"p":-1.2,"y":45.0,"alt":1.2}
-            if (line.startsWith("{") && line.endsWith("}")) {
-                try {
-                    const data = JSON.parse(line);
-                    if (data.r !== undefined) currentTelemetry.roll = data.r;
-                    if (data.p !== undefined) currentTelemetry.pitch = data.p;
-                    if (data.y !== undefined) currentTelemetry.yaw = data.y;
-                    if (data.tr !== undefined) currentTelemetry.targetRoll = data.tr;
-                    if (data.tp !== undefined) currentTelemetry.targetPitch = data.tp;
-                    if (data.alt !== undefined) currentTelemetry.altitude = data.alt;
-                    if (data.temp !== undefined) currentTelemetry.temp = data.temp;
-                    if (data.arm !== undefined) {
-                        isArmed = data.arm;
-                        updateArmUI(isArmed);
-                    }
+        // =====================================================================
+        // PARSER GÓI TIN TELEMETRY ($TEL VÀ JSON)
+        // =====================================================================
+        function parseSerialPacket(line) {
+            // 1. Kiểm tra định dạng $TEL từ main.cpp:
+            // $TEL,roll,pitch,yaw,rateRoll,ratePitch,rateYaw,throttle,m1,m2,m3,m4,alt,armed,fsState
+            if (line.startsWith("$TEL,")) {
+                const parts = line.split(",");
+                if (parts.length >= 14) {
+                    telemetry.roll = parseFloat(parts[1]) || 0;
+                    telemetry.pitch = parseFloat(parts[2]) || 0;
+                    telemetry.yaw = parseFloat(parts[3]) || 0;
+                    telemetry.rateRoll = parseFloat(parts[4]) || 0;
+                    telemetry.ratePitch = parseFloat(parts[5]) || 0;
+                    telemetry.rateYaw = parseFloat(parts[6]) || 0;
+                    telemetry.throttle = parseFloat(parts[7]) || 0;
+                    telemetry.m1 = parseInt(parts[8]) || 1000;
+                    telemetry.m2 = parseInt(parts[9]) || 1000;
+                    telemetry.m3 = parseInt(parts[10]) || 1000;
+                    telemetry.m4 = parseInt(parts[11]) || 1000;
+                    telemetry.altitude = parseFloat(parts[12]) || 0;
+                    telemetry.isArmed = (parseInt(parts[13]) === 1);
+                    telemetry.failsafeState = parseInt(parts[14]) || 0;
 
+                    isArmed = telemetry.isArmed;
+                    updateArmTagUI(isArmed);
+                    updateTelemetryUI();
+                    pushScopeSample();
                     packetCount++;
-                    updateTelemetryDisplay();
-                    pushScopeData();
                     return;
-                } catch (e) {
-                    // Không phải JSON chuẩn -> in ra console
                 }
             }
 
-            // Ghi ra cửa sổ Console
-            logConsole(line);
+            // 2. Gói tin JSON (nếu có):
+            if (line.startsWith("{") && line.endsWith("}")) {
+                try {
+                    const obj = JSON.parse(line);
+                    if (obj.r !== undefined) telemetry.roll = obj.r;
+                    if (obj.p !== undefined) telemetry.pitch = obj.p;
+                    if (obj.y !== undefined) telemetry.yaw = obj.y;
+                    if (obj.rr !== undefined) telemetry.rateRoll = obj.rr;
+                    if (obj.rp !== undefined) telemetry.ratePitch = obj.rp;
+                    if (obj.ry !== undefined) telemetry.rateYaw = obj.ry;
+                    if (obj.arm !== undefined) {
+                        isArmed = obj.arm;
+                        updateArmTagUI(isArmed);
+                    }
+                    updateTelemetryUI();
+                    pushScopeSample();
+                    packetCount++;
+                    return;
+                } catch(e) {}
+            }
+
+            // Ghi ra Serial Console
+            logTerm(line);
         }
 
-        async function sendCommand(cmd) {
+        async function sendCmd(cmdStr) {
             if (!isConnected || !writer) {
-                logConsole("⚠️ Chưa kết nối Serial!");
+                logTerm(`⚠️ Chưa kết nối Serial để gửi lệnh: "${cmdStr}"`);
                 return;
             }
             try {
-                await writer.write(cmd + "\n");
-                logConsole(">> " + cmd);
+                await writer.write(cmdStr + "\n");
+                logTerm(`>> ${cmdStr}`);
             } catch (err) {
-                logConsole("Lỗi gửi lệnh: " + err.message);
+                logTerm(`❌ Lỗi gửi: ${err.message}`);
             }
         }
 
         // =====================================================================
         // 3D DRONE ATTITUDE CANVAS RENDERER
         // =====================================================================
-        const attitudeCanvas = document.getElementById('attitudeCanvas');
-        const attCtx = attitudeCanvas.getContext('2d');
+        const attCanvas = document.getElementById('attitudeCanvas');
+        const attCtx = attCanvas.getContext('2d');
 
-        function resizeCanvas() {
-            attitudeCanvas.width = attitudeCanvas.clientWidth;
-            attitudeCanvas.height = attitudeCanvas.clientHeight;
+        function resizeAttCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = attCanvas.clientWidth;
+            const h = attCanvas.clientHeight;
+            attCanvas.width = w * dpr;
+            attCanvas.height = h * dpr;
+            attCtx.scale(dpr, dpr);
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        window.addEventListener('resize', resizeAttCanvas);
+        resizeAttCanvas();
 
-        function draw3DDrone() {
-            const w = attitudeCanvas.width;
-            const h = attitudeCanvas.height;
+        let rotorAngle = 0;
+        function render3DAttitudeHUD() {
+            const w = attCanvas.clientWidth;
+            const h = attCanvas.clientHeight;
             const cx = w / 2;
             const cy = h / 2;
 
-            attCtx.fillStyle = "#0d1117";
+            attCtx.clearRect(0, 0, w, h);
+
+            // Nền HUD
+            attCtx.fillStyle = "#040711";
             attCtx.fillRect(0, 0, w, h);
 
-            // Chuyển đổi góc Roll, Pitch, Yaw sang Radian
-            const rollRad = (currentTelemetry.roll * Math.PI) / 180;
-            const pitchRad = (currentTelemetry.pitch * Math.PI) / 180;
-            const yawRad = (currentTelemetry.yaw * Math.PI) / 180;
+            const rollRad = (telemetry.roll * Math.PI) / 180;
+            const pitchRad = (telemetry.pitch * Math.PI) / 180;
 
             attCtx.save();
             attCtx.translate(cx, cy);
 
-            // Xoay theo Roll & Pitch
+            // 1. Thước chân trời nhân tạo Artificial Horizon (Xoay theo Roll & Dịch theo Pitch)
+            attCtx.save();
             attCtx.rotate(rollRad);
-            const pitchOffset = Math.sin(pitchRad) * 40;
-            attCtx.translate(0, pitchOffset);
+            const pitchPixelOffset = (telemetry.pitch / 45.0) * (h * 0.45);
+            attCtx.translate(0, pitchPixelOffset);
 
-            // Vẽ Đường Chân Trời (Artificial Horizon)
-            attCtx.strokeStyle = "rgba(59, 130, 246, 0.4)";
-            attCtx.lineWidth = 1;
+            // Đường chân trời chính
+            attCtx.strokeStyle = "rgba(0, 243, 255, 0.4)";
+            attCtx.lineWidth = 1.5;
             attCtx.beginPath();
             attCtx.moveTo(-w, 0);
             attCtx.lineTo(w, 0);
             attCtx.stroke();
 
-            // Vẽ Thân Drone X-Frame
-            const armLen = 55;
-            attCtx.lineWidth = 4;
-            attCtx.lineCap = "round";
-
-            // Arm Trước Trái - Sau Phải (M2 -> M3)
-            attCtx.strokeStyle = "#374151";
-            attCtx.beginPath();
-            attCtx.moveTo(-armLen * 0.7, -armLen * 0.7);
-            attCtx.lineTo(armLen * 0.7, armLen * 0.7);
-            attCtx.stroke();
-
-            // Arm Trước Phải - Sau Trái (M1 -> M4)
-            attCtx.beginPath();
-            attCtx.moveTo(armLen * 0.7, -armLen * 0.7);
-            attCtx.lineTo(-armLen * 0.7, armLen * 0.7);
-            attCtx.stroke();
-
-            // Thân trung tâm
-            attCtx.fillStyle = "#1e293b";
-            attCtx.strokeStyle = varColor('--accent-blue');
-            attCtx.lineWidth = 2;
-            attCtx.beginPath();
-            attCtx.arc(0, 0, 18, 0, Math.PI * 2);
-            attCtx.fill();
-            attCtx.stroke();
-
-            // Mũi hướng về trước (Đỏ)
-            attCtx.fillStyle = varColor('--accent-red');
-            attCtx.beginPath();
-            attCtx.moveTo(0, -16);
-            attCtx.lineTo(-5, -6);
-            attCtx.lineTo(5, -6);
-            attCtx.fill();
-
-            // 4 Motor & Cánh quạt quay
-            const motors = [
-                { x: armLen * 0.7, y: -armLen * 0.7, label: "M1", color: "#10b981" }, // M1 Front Right
-                { x: -armLen * 0.7, y: -armLen * 0.7, label: "M2", color: "#10b981" }, // M2 Front Left
-                { x: armLen * 0.7, y: armLen * 0.7, label: "M3", color: "#3b82f6" },  // M3 Rear Right
-                { x: -armLen * 0.7, y: armLen * 0.7, label: "M4", color: "#3b82f6" }   // M4 Rear Left
-            ];
-
-            motors.forEach((m, idx) => {
-                attCtx.fillStyle = m.color;
+            // Vạch chia độ Pitch (+20°, +10°, -10°, -20°)
+            [-20, -10, 10, 20].forEach(deg => {
+                const dy = -(deg / 45.0) * (h * 0.45);
+                const lineW = (deg % 20 === 0) ? 24 : 14;
+                attCtx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+                attCtx.lineWidth = 1;
                 attCtx.beginPath();
-                attCtx.arc(m.x, m.y, 8, 0, Math.PI * 2);
-                attCtx.fill();
-
-                // Vòng cánh quạt quay mờ
-                attCtx.strokeStyle = isArmed ? "rgba(16, 185, 129, 0.6)" : "rgba(255, 255, 255, 0.2)";
-                attCtx.lineWidth = 1.5;
-                attCtx.beginPath();
-                attCtx.arc(m.x, m.y, 16, 0, Math.PI * 2);
+                attCtx.moveTo(-lineW, dy);
+                attCtx.lineTo(lineW, dy);
                 attCtx.stroke();
 
-                // Nhãn Motor
-                attCtx.fillStyle = "#fff";
-                attCtx.font = "bold 9px monospace";
-                attCtx.fillText(m.label, m.x - 5, m.y + 3);
+                attCtx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                attCtx.font = "8px monospace";
+                attCtx.fillText(deg + "°", lineW + 4, dy + 3);
+            });
+            attCtx.restore();
+
+            // 2. Vẽ Quad-X Frame 3D Phối cảnh
+            attCtx.rotate(rollRad);
+            const armLen = 42;
+
+            // Càng M2 -> M3
+            attCtx.strokeStyle = "#334155";
+            attCtx.lineWidth = 4;
+            attCtx.lineCap = "round";
+            attCtx.beginPath();
+            attCtx.moveTo(-armLen * 0.75, -armLen * 0.75);
+            attCtx.lineTo(armLen * 0.75, armLen * 0.75);
+            attCtx.stroke();
+
+            // Càng M1 -> M4
+            attCtx.beginPath();
+            attCtx.moveTo(armLen * 0.75, -armLen * 0.75);
+            attCtx.lineTo(-armLen * 0.75, armLen * 0.75);
+            attCtx.stroke();
+
+            // Thân FC ESP32-S3 trung tâm
+            attCtx.fillStyle = "#0f172a";
+            attCtx.strokeStyle = "var(--cyan)";
+            attCtx.lineWidth = 2;
+            attCtx.beginPath();
+            attCtx.arc(0, 0, 14, 0, Math.PI * 2);
+            attCtx.fill();
+            attCtx.stroke();
+
+            // Mũi chỉ hướng trước (Đỏ)
+            attCtx.fillStyle = "#ef4444";
+            attCtx.beginPath();
+            attCtx.moveTo(0, -12);
+            attCtx.lineTo(-4, -4);
+            attCtx.lineTo(4, -4);
+            attCtx.fill();
+
+            // 4 Cánh quạt quay Animation
+            if (isArmed) {
+                rotorAngle += 0.35;
+            }
+            const motors = [
+                { x: armLen * 0.75, y: -armLen * 0.75, label: "M1", col: "#10b981", dir: -1 },
+                { x: -armLen * 0.75, y: -armLen * 0.75, label: "M2", col: "#10b981", dir: 1 },
+                { x: armLen * 0.75, y: armLen * 0.75, label: "M3", col: "#3b82f6", dir: 1 },
+                { x: -armLen * 0.75, y: armLen * 0.75, label: "M4", col: "#3b82f6", dir: -1 }
+            ];
+
+            motors.forEach(m => {
+                // Motor hub
+                attCtx.fillStyle = m.col;
+                attCtx.beginPath();
+                attCtx.arc(m.x, m.y, 6, 0, Math.PI * 2);
+                attCtx.fill();
+
+                // Propeller disc
+                attCtx.strokeStyle = isArmed ? "rgba(0, 243, 255, 0.7)" : "rgba(255, 255, 255, 0.2)";
+                attCtx.lineWidth = 1.2;
+                attCtx.beginPath();
+                attCtx.arc(m.x, m.y, 14, 0, Math.PI * 2);
+                attCtx.stroke();
+
+                // Quay cánh
+                if (isArmed) {
+                    const rAngle = rotorAngle * m.dir;
+                    attCtx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                    attCtx.beginPath();
+                    attCtx.moveTo(m.x + Math.cos(rAngle) * 13, m.y + Math.sin(rAngle) * 13);
+                    attCtx.lineTo(m.x - Math.cos(rAngle) * 13, m.y - Math.sin(rAngle) * 13);
+                    attCtx.stroke();
+                }
+
+                // Nhãn M1-M4
+                attCtx.fillStyle = "#ffffff";
+                attCtx.font = "bold 8px monospace";
+                attCtx.fillText(m.label, m.x - 4, m.y + 2.5);
             });
 
             attCtx.restore();
 
-            // Vẽ tâm chữ thập HUD
-            attCtx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            // 3. Tâm chữ thập HUD ngắm
+            attCtx.strokeStyle = "rgba(255, 255, 255, 0.4)";
             attCtx.lineWidth = 1;
             attCtx.beginPath();
-            attCtx.moveTo(cx - 15, cy); attCtx.lineTo(cx + 15, cy);
-            attCtx.moveTo(cx, cy - 15); attCtx.lineTo(cx + 15, cy);
+            attCtx.moveTo(cx - 12, cy); attCtx.lineTo(cx - 4, cy);
+            attCtx.moveTo(cx + 4, cy);  attCtx.lineTo(cx + 12, cy);
+            attCtx.moveTo(cx, cy - 12); attCtx.lineTo(cx, cy - 4);
+            attCtx.moveTo(cx, cy + 4);  attCtx.lineTo(cx, cy + 12);
             attCtx.stroke();
-
-            // Thước góc Pitch/Roll
-            attCtx.fillStyle = "#9ca3af";
-            attCtx.font = "10px monospace";
-            attCtx.fillText("R: " + currentTelemetry.roll.toFixed(1) + "°", 10, h - 10);
-            attCtx.fillText("P: " + currentTelemetry.pitch.toFixed(1) + "°", 70, h - 10);
-            attCtx.fillText("Y: " + currentTelemetry.yaw.toFixed(1) + "°", 130, h - 10);
-        }
-
-        function varColor(name) {
-            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
         }
 
         // =====================================================================
-        // REALTIME OSCILLOSCOPE CANVAS
+        // REALTIME OSCILLOSCOPE RENDERER
         // =====================================================================
-        const scopeCanvas = document.getElementById('realtimeScope');
+        const scopeCanvas = document.getElementById('scopeCanvas');
         const scCtx = scopeCanvas.getContext('2d');
 
         function resizeScopeCanvas() {
-            scopeCanvas.width = scopeCanvas.clientWidth;
-            scopeCanvas.height = scopeCanvas.clientHeight;
+            const dpr = window.devicePixelRatio || 1;
+            const w = scopeCanvas.clientWidth;
+            const h = scopeCanvas.clientHeight;
+            scopeCanvas.width = w * dpr;
+            scopeCanvas.height = h * dpr;
+            scCtx.scale(dpr, dpr);
         }
         window.addEventListener('resize', resizeScopeCanvas);
         resizeScopeCanvas();
 
-        function pushScopeData() {
+        function pushScopeSample() {
             if (isScopePaused) return;
-            scopeData.roll.push(currentTelemetry.roll);
-            scopeData.roll.shift();
+            scopeBuffer.roll.push(telemetry.roll);
+            scopeBuffer.roll.shift();
 
-            scopeData.pitch.push(currentTelemetry.pitch);
-            scopeData.pitch.shift();
+            scopeBuffer.pitch.push(telemetry.pitch);
+            scopeBuffer.pitch.shift();
 
-            scopeData.yaw.push(currentTelemetry.yaw);
-            scopeData.yaw.shift();
+            scopeBuffer.yaw.push(telemetry.yaw);
+            scopeBuffer.yaw.shift();
 
-            scopeData.targetRoll.push(currentTelemetry.targetRoll);
-            scopeData.targetRoll.shift();
+            scopeBuffer.rateRoll.push(telemetry.rateRoll);
+            scopeBuffer.rateRoll.shift();
 
-            scopeData.targetPitch.push(currentTelemetry.targetPitch);
-            scopeData.targetPitch.shift();
+            scopeBuffer.ratePitch.push(telemetry.ratePitch);
+            scopeBuffer.ratePitch.shift();
         }
 
-        function drawScope() {
-            const w = scopeCanvas.width;
-            const h = scopeCanvas.height;
+        function renderScopeWaveforms() {
+            const w = scopeCanvas.clientWidth;
+            const h = scopeCanvas.clientHeight;
             const midY = h / 2;
 
-            scCtx.fillStyle = "#0b0f19";
+            scCtx.clearRect(0, 0, w, h);
+            scCtx.fillStyle = "#050811";
             scCtx.fillRect(0, 0, w, h);
 
             // Lưới toạ độ Grid
-            scCtx.strokeStyle = "rgba(55, 65, 81, 0.4)";
+            scCtx.strokeStyle = "rgba(51, 65, 85, 0.4)";
             scCtx.lineWidth = 1;
             scCtx.beginPath();
-            // Đường 0 độ
-            scCtx.moveTo(0, midY); scCtx.lineTo(w, midY);
-            // Đường +20, -20 độ
-            scCtx.moveTo(0, midY - 40); scCtx.lineTo(w, midY - 40);
-            scCtx.moveTo(0, midY + 40); scCtx.lineTo(w, midY + 40);
+            scCtx.moveTo(0, midY); scCtx.lineTo(w, midY); // 0 độ
+            scCtx.moveTo(0, midY - h * 0.3); scCtx.lineTo(w, midY - h * 0.3); // +20 độ
+            scCtx.moveTo(0, midY + h * 0.3); scCtx.lineTo(w, midY + h * 0.3); // -20 độ
             scCtx.stroke();
 
-            // Thang đo trục Y (+/- 45 độ)
-            scCtx.fillStyle = "#6b7280";
+            // Label trục
+            scCtx.fillStyle = "#64748b";
             scCtx.font = "9px monospace";
-            scCtx.fillText("+45°", 5, midY - 70);
-            scCtx.fillText("  0°", 5, midY - 2);
-            scCtx.fillText("-45°", 5, midY + 70);
+            scCtx.fillText("+30°", 6, midY - h * 0.3 - 2);
+            scCtx.fillText("  0°", 6, midY - 2);
+            scCtx.fillText("-30°", 6, midY + h * 0.3 - 2);
 
-            // Hàm vẽ đường sóng
-            function plotLine(data, color, width = 1.5) {
+            function plot(arr, color, maxScale = 45.0, lineWidth = 1.5) {
                 scCtx.strokeStyle = color;
-                scCtx.lineWidth = width;
+                scCtx.lineWidth = lineWidth;
                 scCtx.beginPath();
-                const step = w / (SCOPE_MAX_POINTS - 1);
-
-                for (let i = 0; i < SCOPE_MAX_POINTS; i++) {
-                    const val = data[i] || 0;
-                    const y = midY - (val / 45.0) * (h * 0.4);
+                const step = w / (MAX_POINTS - 1);
+                for (let i = 0; i < MAX_POINTS; i++) {
+                    const val = arr[i] || 0;
+                    const y = midY - (val / maxScale) * (h * 0.42);
                     const x = i * step;
                     if (i === 0) scCtx.moveTo(x, y);
                     else scCtx.lineTo(x, y);
@@ -1110,217 +1519,388 @@
                 scCtx.stroke();
             }
 
-            // Vẽ các kênh
-            plotLine(scopeData.targetRoll, "#ec4899", 1.0);
-            plotLine(scopeData.targetPitch, "#8b5cf6", 1.0);
-            plotLine(scopeData.roll, varColor('--accent-cyan'), 2.0);
-            plotLine(scopeData.pitch, varColor('--accent-yellow'), 2.0);
-            plotLine(scopeData.yaw, varColor('--accent-green'), 1.5);
+            if (document.getElementById('chkRateRoll').checked) plot(scopeBuffer.rateRoll, "#ec4899", 200.0, 1.0);
+            if (document.getElementById('chkRatePitch').checked) plot(scopeBuffer.ratePitch, "#8b5cf6", 200.0, 1.0);
+            if (document.getElementById('chkRoll').checked) plot(scopeBuffer.roll, "#00f3ff", 45.0, 1.8);
+            if (document.getElementById('chkPitch').checked) plot(scopeBuffer.pitch, "#f59e0b", 45.0, 1.8);
+            if (document.getElementById('chkYaw').checked) plot(scopeBuffer.yaw, "#10b981", 180.0, 1.2);
         }
 
         function clearScope() {
-            scopeData.roll.fill(0);
-            scopeData.pitch.fill(0);
-            scopeData.yaw.fill(0);
-            scopeData.targetRoll.fill(0);
-            scopeData.targetPitch.fill(0);
+            scopeBuffer.roll.fill(0);
+            scopeBuffer.pitch.fill(0);
+            scopeBuffer.yaw.fill(0);
+            scopeBuffer.rateRoll.fill(0);
+            scopeBuffer.ratePitch.fill(0);
         }
 
-        function togglePauseScope() {
+        function toggleScopePause() {
             isScopePaused = !isScopePaused;
-            document.getElementById('btnPauseScope').innerText = isScopePaused ? "▶ Tiếp tục" : "⏸ Tạm dừng";
+            document.getElementById('btnPauseScope').innerText = isScopePaused ? "▶ Tiếp tục" : "⏸ Dừng";
         }
 
         // =====================================================================
-        // UI UPDATES & TELEMETRY
+        // CẬP NHẬT GIAO DIỆN TELEMETRY
         // =====================================================================
-        function updateTelemetryDisplay() {
-            document.getElementById('valRoll').innerText = currentTelemetry.roll.toFixed(1) + "°";
-            document.getElementById('valPitch').innerText = currentTelemetry.pitch.toFixed(1) + "°";
-            document.getElementById('valYaw').innerText = currentTelemetry.yaw.toFixed(1) + "°";
-            document.getElementById('valAltitude').innerText = currentTelemetry.altitude.toFixed(2) + " m";
-            document.getElementById('valTemperature').innerText = currentTelemetry.temp.toFixed(1) + " °C";
+        function updateTelemetryUI() {
+            document.getElementById('valRoll').innerText = telemetry.roll.toFixed(1) + "°";
+            document.getElementById('valPitch').innerText = telemetry.pitch.toFixed(1) + "°";
+            document.getElementById('valYaw').innerText = telemetry.yaw.toFixed(1) + "°";
 
-            // Update FPS
-            const now = Date.now();
+            document.getElementById('valRateRoll').innerText = telemetry.rateRoll.toFixed(1) + "°/s";
+            document.getElementById('valRatePitch').innerText = telemetry.ratePitch.toFixed(1) + "°/s";
+            document.getElementById('valRateYaw').innerText = telemetry.rateYaw.toFixed(1) + "°/s";
+
+            // Cập nhật Pulse Micro-bars
+            document.getElementById('m1Pulse').innerText = telemetry.m1 + " µs";
+            document.getElementById('m2Pulse').innerText = telemetry.m2 + " µs";
+            document.getElementById('m3Pulse').innerText = telemetry.m3 + " µs";
+            document.getElementById('m4Pulse').innerText = telemetry.m4 + " µs";
+
+            document.getElementById('m1Bar').style.width = Math.min(100, Math.max(0, (telemetry.m1 - 1000) / 10)) + "%";
+            document.getElementById('m2Bar').style.width = Math.min(100, Math.max(0, (telemetry.m2 - 1000) / 10)) + "%";
+            document.getElementById('m3Bar').style.width = Math.min(100, Math.max(0, (telemetry.m3 - 1000) / 10)) + "%";
+            document.getElementById('m4Bar').style.width = Math.min(100, Math.max(0, (telemetry.m4 - 1000) / 10)) + "%";
+
+            // Cập nhật FPS Rate
+            const now = performance.now();
             if (now - lastFpsTime >= 1000) {
-                document.getElementById('fpsCounter').innerText = packetCount + " Hz";
+                document.getElementById('hzBadge').innerText = packetCount + " Hz";
                 packetCount = 0;
                 lastFpsTime = now;
             }
         }
 
-        function updateThrottle(val) {
-            document.getElementById('throttlePercent').innerText = val + "%";
+        function updateArmTagUI(armed) {
+            const tag = document.getElementById('armStateTag');
+            const btn = document.getElementById('btnArmToggle');
+            if (armed) {
+                tag.innerText = "ARMED (DANGER)";
+                tag.className = "tag tag-red";
+                btn.innerText = "🛑 DISARM MOTOR";
+                btn.className = "btn btn-danger";
+            } else {
+                tag.innerText = "DISARMED (SAFE)";
+                tag.className = "tag tag-green";
+                btn.innerText = "⚡ ARM MOTOR";
+                btn.className = "btn btn-success";
+            }
+        }
+
+        function onThrottleChange(val) {
+            document.getElementById('throttleText').innerText = val + "%";
             if (isArmed) {
-                sendCommand("THROTTLE " + val);
+                sendCmd(`SET RC ${val} 0 0 0`);
             }
         }
 
         function toggleArm() {
             if (!isArmed) {
-                const throttle = parseInt(document.getElementById('masterThrottle').value);
+                const throttle = parseInt(document.getElementById('throttleSlider').value);
                 if (throttle > 0) {
                     alert("⚠️ AN TOÀN: Bạn phải kéo cần ga (Throttle) về 0% trước khi ARM!");
                     return;
                 }
-                sendCommand("ARM");
+                sendCmd("ARM");
                 isArmed = true;
             } else {
-                sendCommand("DISARM");
+                sendCmd("DISARM");
                 isArmed = false;
-                document.getElementById('masterThrottle').value = 0;
-                updateThrottle(0);
+                document.getElementById('throttleSlider').value = 0;
+                onThrottleChange(0);
             }
-            updateArmUI(isArmed);
+            updateArmTagUI(isArmed);
         }
 
-        function sendEmergencyStop() {
+        function emergencyStop() {
             isArmed = false;
-            document.getElementById('masterThrottle').value = 0;
-            updateThrottle(0);
-            stopAllMotors();
-            sendCommand("DISARM");
-            sendCommand("EMERGENCY_STOP");
-            updateArmUI(false);
-            logConsole("🚨 ĐÃ KÍCH HOẠT DỪNG KHẨN CẤP (EMERGENCY DISARM)!");
-        }
-
-        function updateArmUI(armed) {
-            const btn = document.getElementById('btnArmToggle');
-            const badge = document.getElementById('armBadge');
-            if (armed) {
-                btn.innerText = "🛑 DISARM MOTOR";
-                btn.className = "btn btn-danger";
-                badge.innerText = "ARMED (DANGER)";
-                badge.className = "pill-tag pill-yellow";
-                badge.style.background = "rgba(239, 68, 68, 0.3)";
-                badge.style.color = "#ef4444";
-            } else {
-                btn.innerText = "⚡ ARM MOTOR";
-                btn.className = "btn btn-success";
-                badge.innerText = "DISARMED (SAFE)";
-                badge.className = "pill-tag pill-green";
-                badge.style.background = "rgba(16, 185, 129, 0.2)";
-                badge.style.color = "#10b981";
-            }
+            document.getElementById('throttleSlider').value = 0;
+            onThrottleChange(0);
+            stopAllTestMotors();
+            sendCmd("DISARM");
+            updateArmTagUI(false);
+            logTerm("🚨 ĐÃ KÍCH HOẠT DỪNG KHẨN CẤP (EMERGENCY DISARM)!");
         }
 
         // =====================================================================
-        // PID PARAMETERS
-        // =====================================================================
-        function sendAllPID() {
-            const rKp = document.getElementById('rollKp').value;
-            const rKi = document.getElementById('rollKi').value;
-            const rKd = document.getElementById('rollKd').value;
-
-            const pKp = document.getElementById('pitchKp').value;
-            const pKi = document.getElementById('pitchKi').value;
-            const pKd = document.getElementById('pitchKd').value;
-
-            const yKp = document.getElementById('yawKp').value;
-            const yKi = document.getElementById('yawKi').value;
-            const yKd = document.getElementById('yawKd').value;
-
-            sendCommand(`SET PID ROLL ${rKp} ${rKi} ${rKd}`);
-            sendCommand(`SET PID PITCH ${pKp} ${pKi} ${pKd}`);
-            sendCommand(`SET PID YAW ${yKp} ${yKi} ${yKd}`);
-            sendCommand("SAVE_PID");
-            logConsole("✅ Đã gửi toàn bộ thông số PID xuống Drone!");
-        }
-
-        function resetPIDDefaults() {
-            document.getElementById('rollKp').value = 1.20;
-            document.getElementById('rollKi').value = 0.04;
-            document.getElementById('rollKd').value = 0.25;
-
-            document.getElementById('pitchKp').value = 1.20;
-            document.getElementById('pitchKi').value = 0.04;
-            document.getElementById('pitchKd').value = 0.25;
-
-            document.getElementById('yawKp').value = 2.00;
-            document.getElementById('yawKi').value = 0.02;
-            document.getElementById('yawKd').value = 0.00;
-        }
-
-        // =====================================================================
-        // MOTOR TEST (PCA9685)
+        // TEST ĐỘNG CƠ ĐỘC LẬP (PCA9685)
         // =====================================================================
         function toggleMotorTestLock() {
-            const unlocked = document.getElementById('chkPropsOff').checked;
+            const unlocked = document.getElementById('chkPropsRemoved').checked;
             for (let i = 1; i <= 4; i++) {
-                document.getElementById(`m${i}Slider`).disabled = !unlocked;
+                const slider = document.getElementById(`m${i}TestSlider`);
+                slider.disabled = !unlocked;
                 if (!unlocked) {
-                    document.getElementById(`m${i}Slider`).value = 0;
-                    document.getElementById(`m${i}Val`).innerText = "0%";
+                    slider.value = 0;
+                    document.getElementById(`m${i}TestVal`).innerText = "0%";
                 }
             }
             if (!unlocked) {
-                stopAllMotors();
+                stopAllTestMotors();
             }
         }
 
-        function testMotor(motorNum, val) {
-            document.getElementById(`m${motorNum}Val`).innerText = val + "%";
-            sendCommand(`TEST_MOTOR ${motorNum} ${val}`);
+        function testMotor(mNum, percent) {
+            document.getElementById(`m${mNum}TestVal`).innerText = percent + "%";
+            sendCmd(`TEST M${mNum} ${percent}`);
         }
 
-        function stopAllMotors() {
+        function stopAllTestMotors() {
             for (let i = 1; i <= 4; i++) {
-                document.getElementById(`m${i}Slider`).value = 0;
-                document.getElementById(`m${i}Val`).innerText = "0%";
+                document.getElementById(`m${i}TestSlider`).value = 0;
+                document.getElementById(`m${i}TestVal`).innerText = "0%";
+                sendCmd(`TEST M${i} 0`);
             }
-            sendCommand("TEST_MOTOR ALL 0");
         }
 
         // =====================================================================
-        // CONSOLE TERMINAL
+        // BỘ ĐIỀU CHỈNH PID & TƯƠNG TÁC
         // =====================================================================
-        function logConsole(msg) {
-            const out = document.getElementById('consoleOutput');
-            const time = new Date().toLocaleTimeString();
-            out.textContent += `\n[${time}] ${msg}`;
-            out.scrollTop = out.scrollHeight;
+        function stepPid(id, delta) {
+            const el = document.getElementById(id);
+            let val = parseFloat(el.value) || 0;
+            val = Math.max(0, val + delta);
+            el.value = (delta.toString().includes('0.005') || delta.toString().includes('0.001')) ? val.toFixed(3) : val.toFixed(2);
         }
 
-        function clearConsole() {
-            document.getElementById('consoleOutput').textContent = "--- Console đã xóa ---";
+        function sendSinglePid(axis) {
+            if (axis === 'ROLL_RATE') {
+                const kp = document.getElementById('rollRateKp').value;
+                const ki = document.getElementById('rollRateKi').value;
+                const kd = document.getElementById('rollRateKd').value;
+                sendCmd(`SET PID ROLL_RATE ${kp} ${ki} ${kd}`);
+            } else if (axis === 'PITCH_RATE') {
+                const kp = document.getElementById('pitchRateKp').value;
+                const ki = document.getElementById('pitchRateKi').value;
+                const kd = document.getElementById('pitchRateKd').value;
+                sendCmd(`SET PID PITCH_RATE ${kp} ${ki} ${kd}`);
+            } else if (axis === 'YAW_RATE') {
+                const kp = document.getElementById('yawRateKp').value;
+                const ki = document.getElementById('yawRateKi').value;
+                const kd = document.getElementById('yawRateKd').value;
+                sendCmd(`SET PID YAW_RATE ${kp} ${ki} ${kd}`);
+            }
         }
 
-        function sendConsoleInput() {
-            const input = document.getElementById('consoleInput');
+        function sendAllPids() {
+            const rKp = document.getElementById('rollRateKp').value;
+            const rKi = document.getElementById('rollRateKi').value;
+            const rKd = document.getElementById('rollRateKd').value;
+
+            const pKp = document.getElementById('pitchRateKp').value;
+            const pKi = document.getElementById('pitchRateKi').value;
+            const pKd = document.getElementById('pitchRateKd').value;
+
+            const yKp = document.getElementById('yawRateKp').value;
+            const yKi = document.getElementById('yawRateKi').value;
+            const yKd = document.getElementById('yawRateKd').value;
+
+            const raKp = document.getElementById('rollAngleKp').value;
+            const paKp = document.getElementById('pitchAngleKp').value;
+
+            sendCmd(`SET PID ROLL_RATE ${rKp} ${rKi} ${rKd}`);
+            sendCmd(`SET PID PITCH_RATE ${pKp} ${pKi} ${pKd}`);
+            sendCmd(`SET PID YAW_RATE ${yKp} ${yKi} ${yKd}`);
+            sendCmd(`SET PID ROLL_ANGLE ${raKp} 0 0`);
+            sendCmd(`SET PID PITCH_ANGLE ${paKp} 0 0`);
+
+            logTerm("✅ Đã truyền toàn bộ thông số PID xuống RAM của Drone!");
+        }
+
+        function resetToProjectDefaults() {
+            applyDronePreset('f450_3s');
+        }
+
+        // =====================================================================
+        // AI PID TUNING ADVISOR & SYMPTOM CALCULATOR
+        // =====================================================================
+        const PRESETS = {
+            f450_3s: {
+                name: "F450 Quad-X (Cấu hình chuẩn dự án)",
+                rollRate: { kp: 1.20, ki: 0.040, kd: 0.035 },
+                pitchRate: { kp: 1.20, ki: 0.040, kd: 0.035 },
+                yawRate: { kp: 2.50, ki: 0.080, kd: 0.000 },
+                angle: { rollKp: 4.50, pitchKp: 4.50 },
+                desc: "Cấu hình chuẩn cho động cơ A2212 1000KV + Cánh 1045 + ESC 30A + Pin LiPo 3S. Cánh 10 inch quán tính lớn, giữ Kd = 0.035 và LPF = 0.70 để triệt tiêu nóng motor."
+            },
+            freestyle_5in: {
+                name: "5-Inch Freestyle (Gia tốc cao)",
+                rollRate: { kp: 1.80, ki: 0.060, kd: 0.045 },
+                pitchRate: { kp: 1.80, ki: 0.060, kd: 0.045 },
+                yawRate: { kp: 3.20, ki: 0.100, kd: 0.000 },
+                angle: { rollKp: 6.00, pitchKp: 6.00 },
+                desc: "Dành cho khung 5-inch motor 2207/2306 tốc độ cao 2400KV. Phản ứng tức thì, Kp cao và Angle Kp sắc nét."
+            },
+            cinewhoop_3in: {
+                name: "CineWhoop 3-Inch (Quay phim mượt mà)",
+                rollRate: { kp: 0.90, ki: 0.050, kd: 0.025 },
+                pitchRate: { kp: 0.90, ki: 0.050, kd: 0.025 },
+                yawRate: { kp: 2.00, ki: 0.060, kd: 0.000 },
+                angle: { rollKp: 3.80, pitchKp: 3.80 },
+                desc: "Tối ưu hóa độ đầm chắc, mượt mà khi quay phim. Kp và Kd giảm nhẹ để triệt tiêu mọi rung chấn vi mô (Jello effect)."
+            },
+            micro_2s: {
+                name: "Micro Quad 2S (Bay trong nhà)",
+                rollRate: { kp: 1.50, ki: 0.050, kd: 0.030 },
+                pitchRate: { kp: 1.50, ki: 0.050, kd: 0.030 },
+                yawRate: { kp: 2.20, ki: 0.070, kd: 0.000 },
+                angle: { rollKp: 5.00, pitchKp: 5.00 },
+                desc: "Trọng lượng nhẹ, động cơ không chổi than nhỏ 1103. Tự phục hồi góc nhanh trong không gian hẹp."
+            }
+        };
+
+        function applyDronePreset(key) {
+            const p = PRESETS[key];
+            if (!p) return;
+
+            document.getElementById('rollRateKp').value = p.rollRate.kp.toFixed(2);
+            document.getElementById('rollRateKi').value = p.rollRate.ki.toFixed(3);
+            document.getElementById('rollRateKd').value = p.rollRate.kd.toFixed(3);
+
+            document.getElementById('pitchRateKp').value = p.pitchRate.kp.toFixed(2);
+            document.getElementById('pitchRateKi').value = p.pitchRate.ki.toFixed(3);
+            document.getElementById('pitchRateKd').value = p.pitchRate.kd.toFixed(3);
+
+            document.getElementById('yawRateKp').value = p.yawRate.kp.toFixed(2);
+            document.getElementById('yawRateKi').value = p.yawRate.ki.toFixed(3);
+            document.getElementById('yawRateKd').value = p.yawRate.kd.toFixed(3);
+
+            document.getElementById('rollAngleKp').value = p.angle.rollKp.toFixed(2);
+            document.getElementById('pitchAngleKp').value = p.angle.pitchKp.toFixed(2);
+
+            document.getElementById('advisorAdviceBox').innerHTML = `<b>${p.name}:</b> ${p.desc}`;
+        }
+
+        function analyzeSymptom(sym) {
+            const box = document.getElementById('advisorAdviceBox');
+            if (sym === 'fast_wobble') {
+                box.innerHTML = `⚠️ <b>Rung lắc nhanh (>15Hz):</b> Do <b>Kp quá cao</b> hoặc <b>Kd quá cao</b> khuếch đại rung động cơ. <br>👉 <b>Hành động:</b> Giảm Kp 15% (xuống ~1.00) và giảm Kd 30% (xuống ~0.025). Kiểm tra cánh quạt đã cân bằng động chưa.`;
+            } else if (sym === 'slow_wobble') {
+                box.innerHTML = `⚠️ <b>Dao động chậm (1-3Hz):</b> Do <b>Ki quá cao</b> gây tích phân dư thừa (I-term windup). <br>👉 <b>Hành động:</b> Giảm Ki 30% (xuống ~0.025 - 0.030) để ngắt hiện tượng bồng bềnh.`;
+            } else if (sym === 'sluggish') {
+                box.innerHTML = `⚠️ <b>Phản ứng chậm, lì đòn:</b> Do <b>Kp quá thấp</b> khiến lực đẩy bù góc không đủ nhanh. <br>👉 <b>Hành động:</b> Tăng Kp 15-20% (lên ~1.40 - 1.50) và tăng Angle Kp lên ~5.0.`;
+            } else if (sym === 'bounce_back') {
+                box.innerHTML = `⚠️ <b>Bị giật nảy ngược khi dừng:</b> Do <b>Kd quá thấp</b> không đủ lực hãm dập tắt quán tính góc. <br>👉 <b>Hành động:</b> Tăng Kd nhẹ 15% (lên ~0.040 - 0.045). Chú ý sờ nhiệt độ động cơ sau 30 giây bay.`;
+            } else if (sym === 'angle_drift') {
+                box.innerHTML = `⚠️ <b>Trôi góc dần khi thả tay:</b> Do <b>Ki quá thấp</b> hoặc trọng tâm pin bị lệch. <br>👉 <b>Hành động:</b> Tăng Ki 20% (lên ~0.050) và căn lại trọng tâm trọng lực (CG) đúng chính giữa 4 motor.`;
+            } else if (sym === 'hot_motors') {
+                box.innerHTML = `🔥 <b>Động cơ rất nóng:</b> D-term đang khuếch đại nhiễu cơ học từ cánh quạt. <br>👉 <b>Hành động:</b> Giảm Kd ngay 40% (xuống ~0.020), xiết chặt ốc motor và cân bằng cánh quạt.`;
+            } else if (sym === 'punchout_dip') {
+                box.innerHTML = `⚠️ <b>Mũi bị chúc khi thốc ga mạnh:</b> Tải trọng cơ học thay đổi nhanh. <br>👉 <b>Hành động:</b> Tăng Ki Roll/Pitch 15% và kiểm tra pin LiPo có bị sụt áp đột ngột (voltage sag) không.`;
+            } else if (sym === 'yaw_drift') {
+                box.innerHTML = `⚠️ <b>Xoay mũi bị trôi:</b> Cần tăng lực giữ hướng. <br>👉 <b>Hành động:</b> Tăng Yaw Kp lên ~2.80 - 3.00, giữ Kd = 0.000 (Yaw không dùng vi phân Kd).`;
+            } else {
+                resetToProjectDefaults();
+            }
+        }
+
+        function applyAdvisorPids() {
+            sendAllPids();
+        }
+
+        // =====================================================================
+        // XUẤT CODE C++ CHO MotorMixer.cpp
+        // =====================================================================
+        function openCppExportModal() {
+            const rKp = document.getElementById('rollRateKp').value;
+            const rKi = document.getElementById('rollRateKi').value;
+            const rKd = document.getElementById('rollRateKd').value;
+
+            const pKp = document.getElementById('pitchRateKp').value;
+            const pKi = document.getElementById('pitchRateKi').value;
+            const pKd = document.getElementById('pitchRateKd').value;
+
+            const yKp = document.getElementById('yawRateKp').value;
+            const yKi = document.getElementById('yawRateKi').value;
+            const yKd = document.getElementById('yawRateKd').value;
+
+            const raKp = document.getElementById('rollAngleKp').value;
+            const paKp = document.getElementById('pitchAngleKp').value;
+
+            const code = `void MotorMixer::begin() {
+    // 1. Cấu hình PID Vòng ngoài (Euler Angle Loop)
+    rollAnglePid_.begin(${parseFloat(raKp).toFixed(1)}f, 0.0f, 0.0f, 0.0f, 300.0f);
+    pitchAnglePid_.begin(${parseFloat(paKp).toFixed(1)}f, 0.0f, 0.0f, 0.0f, 300.0f);
+
+    // 2. Cấu hình PID Vòng trong (Rate Loop - Gyro 250Hz)
+    rollRatePid_.begin(${parseFloat(rKp).toFixed(2)}f, ${parseFloat(rKi).toFixed(3)}f, ${parseFloat(rKd).toFixed(3)}f, 150.0f, 400.0f);
+    pitchRatePid_.begin(${parseFloat(pKp).toFixed(2)}f, ${parseFloat(pKi).toFixed(3)}f, ${parseFloat(pKd).toFixed(3)}f, 150.0f, 400.0f);
+    yawRatePid_.begin(${parseFloat(yKp).toFixed(2)}f, ${parseFloat(yKi).toFixed(3)}f, ${parseFloat(yKd).toFixed(3)}f, 150.0f, 400.0f);
+
+    // Bộ lọc thông thấp D-term
+    rollRatePid_.setDTermFilter(0.70f);
+    pitchRatePid_.setDTermFilter(0.70f);
+
+    resetPids();
+}`;
+
+            document.getElementById('cppCodeOutput').innerText = code;
+            document.getElementById('exportModal').style.display = "flex";
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportModal').style.display = "none";
+        }
+
+        function closeModalOnOutside(e) {
+            if (e.target.id === 'exportModal') closeExportModal();
+        }
+
+        function copyCppCode() {
+            const code = document.getElementById('cppCodeOutput').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert("✅ Đã sao chép mã C++ vào Clipboard! Hãy dán vào src/control/MotorMixer.cpp và biên dịch lại.");
+            });
+        }
+
+        // =====================================================================
+        // SERIAL TERMINAL
+        // =====================================================================
+        function logTerm(msg) {
+            const term = document.getElementById('terminalOutput');
+            const t = new Date().toLocaleTimeString();
+            term.textContent += `\n[${t}] ${msg}`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearTerminal() {
+            document.getElementById('terminalOutput').textContent = "--- Đã xóa Terminal Log ---";
+        }
+
+        function sendTerminalInput() {
+            const input = document.getElementById('terminalInput');
             const val = input.value.trim();
             if (val) {
-                sendCommand(val);
+                sendCmd(val);
                 input.value = "";
             }
         }
 
-        function handleConsoleKey(e) {
+        function handleTermKey(e) {
             if (e.key === 'Enter') {
-                sendConsoleInput();
+                sendTerminalInput();
             }
         }
 
-        // Phím tắt bàn phím khẩn cấp: Spacebar hoặc Escape -> Ngắt khẩn cấp
+        // Phím tắt khẩn cấp: Spacebar hoặc Escape
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
                 e.preventDefault();
-                sendEmergencyStop();
+                emergencyStop();
             } else if (e.key === 'Escape') {
-                sendEmergencyStop();
+                emergencyStop();
             }
         });
 
         // =====================================================================
-        // MAIN ANIMATION RENDER LOOP (60 FPS)
+        // MAIN ANIMATION LOOP (60 FPS)
         // =====================================================================
-        function animationLoop() {
-            draw3DDrone();
-            drawScope();
-            requestAnimationFrame(animationLoop);
+        function animate() {
+            render3DAttitudeHUD();
+            renderScopeWaveforms();
+            requestAnimationFrame(animate);
         }
-        requestAnimationFrame(animationLoop);
+        requestAnimationFrame(animate);
 
     </script>
 </body>

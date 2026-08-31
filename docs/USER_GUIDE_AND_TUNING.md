@@ -229,51 +229,66 @@ Mục tiêu ──┼─>| ANGLE PID   |── mục tiêu ──>| RATE PID    
 
 ### 6.2. Quy trình 5 bước Tune PID thực tế (Phương pháp thực chiến)
 
-> 💡 **Khuyến nghị thử nghiệm**: Sử dụng cơ cấu **khung treo thử nghiệm (Tuning Rig)** hoặc buộc dây mềm 2 đầu trục cánh tay để hạn chế drone va đập khi tìm thông số.
+> 💡 **3 Giai đoạn thử nghiệm an toàn khuyến nghị**:
+> 1. **Giai đoạn 1 (Khung treo 1 trục)**: Cố định trục Pitch trên giá đỡ, chỉ cho phép trục Roll tự do xoay để tìm thông số Roll mà không sợ lật tứ tung.
+> 2. **Giai đoạn 2 (Test cầm tay bảo hộ)**: Đeo găng tay dày và kính bảo hộ, giữ chặt chân đáp dưới bụng drone, lên ga 25% và búng cần gạt để cảm nhận lực phản hồi.
+> 3. **Giai đoạn 3 (Buộc dây hãm đất - Tether)**: Dùng 4 sợi dây dù dài 0.5m buộc 4 chân đáp cố định xuống cọc đất để hover thử nghiệm an toàn ngoài bãi cỏ.
 
-#### BƯỚC 1: Đặt thông số về mức an toàn ban đầu
-* Đặt toàn bộ $K_i = 0$ và $K_d = 0$.
-* Tạm thời tắt Angle Loop ($K_p = 0$ cho Angle PID) hoặc chỉ tập trung vào **Rate PID** trước.
-* Đặt $K_p$ của Roll Rate và Pitch Rate ở mức nhỏ: `0.08`.
+#### BƯỚC 1: Tìm $K_p$ Vòng Trong (Roll Rate & Pitch Rate) — "Độ Cứng Vững"
+1. Đặt $K_i = 0$, $K_d = 0$, Angle $K_p = 0$ (hoặc bay ở chế độ `ACRO/RATE`).
+2. Đặt $K_p = 0.60$ làm mức khởi điểm.
+3. Lên ga vừa đủ để drone bắt đầu nâng mình khỏi mặt đất (~25% - 30% ga).
+4. Tăng dần $K_p$ mỗi lần `+0.15` qua GCS Tuner ($0.60 \rightarrow 0.75 \rightarrow 0.90 \rightarrow 1.05 \rightarrow 1.20 \rightarrow 1.35...$):
+   * *Nếu thấy drone phản hồi lờ đờ, bị lật nghiêng trôi dạt* $\rightarrow$ **Thiếu $K_p$**, tiếp tục tăng.
+   * *Nếu thấy drone bắt đầu xuất hiện **rung dao động nhanh tần số cao (Fast Oscillation 15-30Hz)** phát ra tiếng rít "zizz zizz"* $\rightarrow$ **Dư $K_p$**.
+5. **Điểm chốt $K_p$ chuẩn**: Lấy giá trị tại điểm bắt đầu rung **nhân với $0.70$** (giảm bớt $30\%$).
+   * *Ví dụ: Bắt đầu rung tại $K_p = 1.60 \rightarrow$ Chốt $K_p = 1.60 \times 0.70 = 1.12 \approx 1.20$.*
 
-#### BƯỚC 2: Tìm $K_p$ tối ưu cho Rate Loop
-1. Giữ ga ở mức Hover (~25% - 30% khi drone bắt đầu nhẹ chân).
-2. Tăng dần $K_p$ mỗi lần `0.02` (qua GCS Tuner: `0.08 -> 0.10 -> 0.12 -> 0.15...`).
-3. Dùng tay lắc nhẹ khung drone hoặc búng nhẹ cần điều khiển:
-   * Quan sát đến khi thấy drone bắt đầu xuất hiện **rung dao động nhanh (Oscillation)**.
-4. **Lùi giá trị $K_p$ lại khoảng 25% - 30%** so với điểm rung đó $\rightarrow$ Đây chính là $K_p$ chuẩn.
+#### BƯỚC 2: Thêm $K_d$ Vòng Trong — "Phanh Hãm Quán Tính & Dập Tắt Rung Lắc"
+1. Bắt đầu tăng $K_d$ từ giá trị `0.015`.
+2. Tăng dần $K_d$ mỗi lần `+0.005` ($0.015 \rightarrow 0.020 \rightarrow 0.025 \rightarrow 0.030 \rightarrow 0.035$):
+   * Búng nhẹ cần gạt Roll/Pitch rồi thả tay về giữa:
+   * *Nếu drone dừng lại lập tức, không bị nảy giật lại (No Bounce-back)* $\rightarrow$ **$K_d$ đạt chuẩn**.
+3. ⚠️ **KIỂM TRA NHIỆT ĐỘ MOTOR (BẮT BUỘC)**:
+   * Sau mỗi lần thử 45 giây, đáp drone, ngắt ARM và **dùng tay chạm trực tiếp vào vỏ 4 motor**:
+   * *Motor ấm nhẹ ($< 45^\circ\text{C}$)* $\rightarrow$ Hoàn hảo.
+   * *Motor nóng rát tay ($> 60^\circ\text{C}$)* $\rightarrow$ **$K_d$ quá cao** (khuếch đại nhiễu rung cơ học làm ESC nhồi xung liên tục) $\rightarrow$ **Phải giảm ngay $K_d$ xuống 30%** và kiểm tra đệm cao su giảm chấn của MPU6050.
 
-#### BƯỚC 3: Thêm $K_d$ để hãm vọt lố và làm mượt
-1. Bắt đầu tăng $K_d$ từ giá trị nhỏ: `0.001 -> 0.002 -> 0.003`.
-2. Lắc cần điều khiển và nhả nhanh:
-   * Nếu drone dừng lại dứt khoát, không bị nảy lại (bounce back) $\rightarrow$ Đạt yêu cầu.
-3. ⚠️ **Kiểm tra nhiệt độ motor**: Sau 1 phút test, sờ tay vào motor. Nếu motor ấm nhẹ là tốt. Nếu motor **nóng rát tay** $\rightarrow$ Giảm $K_d$ ngay!
+#### BƯỚC 3: Thêm $K_i$ Vòng Trong — "Khóa Góc Cố Định & Chống Gió Tạt"
+1. Đặt $K_i = 0.02$ làm khởi điểm.
+2. Tăng dần $K_i$ mỗi lần `+0.01` ($0.02 \rightarrow 0.03 \rightarrow 0.04 \rightarrow 0.05$):
+   * Nghiêng cần lái tạo góc nghiêng $15^\circ$ rồi thả tay:
+   * *Nếu drone giữ nguyên tư thế góc đó khi bay thẳng mà không bị trôi từ từ về mặt đất* $\rightarrow$ **$K_i$ đạt chuẩn**.
+   * *Nếu thấy drone xuất hiện **dao động nhấp nhô chậm chạp (Slow Wobble 1-2Hz)*** $\rightarrow$ **Dư $K_i$**, giảm bớt $20\%$.
 
-#### BƯỚC 4: Thêm $K_i$ để giữ vững góc
-1. Tăng $K_i$ từ `0.02 -> 0.04 -> 0.06`.
-2. Nghiêng drone một góc cố định rồi thả tay:
-   * Nếu drone giữ vững tư thế không bị trôi về vị trí cũ $\rightarrow$ Đạt yêu cầu.
-   * Nếu thấy drone lắc lư gật gù chậm rãi $\rightarrow$ $K_i$ đang hơi cao, giảm bớt.
+#### BƯỚC 4: Kích Hoạt $K_p$ Vòng Ngoài (Angle Loop) — "Độ Nhạy Tự Cân Bằng"
+1. Chuyển sang chế độ bay **`ANGLE`** trên Web Cockpit hoặc Web Tuner.
+2. Đặt Angle $K_p = 3.0$ (Angle $K_i = 0$, Angle $K_d = 0$).
+3. Tăng dần $K_p$ mỗi lần `+0.5` ($3.0 \rightarrow 3.5 \rightarrow 4.0 \rightarrow 4.5 \rightarrow 5.0$):
+   * Lấy tay nghiêng drone rồi buông ra: Drone phải **tự động bật thẳng đứng lại vị trí cân bằng ngang trong tích tắc**.
+   * *Nếu drone phản hồi trả về chậm chạp* $\rightarrow$ Tăng Angle $K_p$.
+   * *Nếu drone tự cân bằng nhưng bị lắc lư qua lại vài nhịp trước khi phẳng* $\rightarrow$ Giảm Angle $K_p$.
 
-#### BƯỚC 5: Kích hoạt Angle Loop (Vòng tự cân bằng ngoài)
-1. Sau khi Rate Loop (vòng trong) đã phản hồi sắc nét, bắt đầu tăng $K_p$ của **Angle PID**:
-   * Đặt Roll/Pitch Angle $K_p = 2.5 -> 3.5 -> 4.5$.
-2. Đặt Angle $K_i = 0$ và Angle $K_d = 0$ (vì vòng trong đã xử lý giảm chấn và sai số).
-3. Thử nghiêng drone bằng tay rồi thả ra: Drone phải tự động bật thẳng đứng lại vị trí cân bằng trong tích tắc!
+#### BƯỚC 5: Tune Trục Xoay Đầu (Yaw Rate Loop)
+1. Trục Yaw luôn điều khiển trực tiếp tốc độ xoay deg/s (không dùng vòng Angle).
+2. Đặt $K_p = 2.0$, $K_i = 0.05$, $K_d = 0.000$.
+3. Tăng dần $K_p$ lên $2.5 - 3.0$ để mũi drone xoay dứt khoát theo cần lái.
+4. Tăng $K_i$ lên $0.08 - 0.10$ để giữ hướng mũi cố định, không bị tự xoay đuôi do phản lực cánh quạt (Yaw Drift).
+5. *Lưu ý*: Trục Yaw thường **luôn để $K_d = 0$** để tránh làm nóng motor vô ích.
 
 ---
 
 ## 7. BẢNG THÔNG SỐ PID KHỞI ĐIỂM KHUYẾN NGHỊ
 
-*(Áp dụng cho khung Quad-X 450mm, Motor A2212 1000KV, Cánh 1045, Pin 3S 2200mAh)*:
+*(Áp dụng cho khung Quad-X 450mm, Motor A2212 1000KV, Cánh 1045, ESC 30A, Pin 3S 2200mAh)*:
 
-| Bộ Điều Khiển (Controller) | Trục Điều Khiển | Hệ số $K_p$ | Hệ số $K_i$ | Hệ số $K_d$ | Ghi Chú Kỹ Thuật |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Angle PID (Vòng ngoài)** | **Roll Angle** | `3.50` | `0.00` | `0.00` | Tự động cân bằng trục ngang |
-| **Angle PID (Vòng ngoài)** | **Pitch Angle** | `3.50` | `0.00` | `0.00` | Tự động cân bằng trục dọc |
-| **Rate PID (Vòng trong)** | **Roll Rate** | `0.150` | `0.050` | `0.0035` | Phản hồi tốc độ góc Roll (deg/s) |
-| **Rate PID (Vòng trong)** | **Pitch Rate** | `0.150` | `0.050` | `0.0035` | Phản hồi tốc độ góc Pitch (deg/s) |
-| **Rate PID (Vòng trong)** | **Yaw Rate** | `0.250` | `0.080` | `0.0010` | Khóa hướng mũi drone (Heading) |
+| Bộ Điều Khiển (Controller) | Trục (Axis) | $K_p$ | $K_i$ | $K_d$ | D-Filter $\alpha$ | Giới Hạn Max | Ghi Chú Kỹ Thuật |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Angle PID (Vòng ngoài)** | **Roll Angle** | `4.50` | `0.00` | `0.00` | — | $\pm 300^\circ/\text{s}$ | Tự động cân bằng trục ngang |
+| **Angle PID (Vòng ngoài)** | **Pitch Angle** | `4.50` | `0.00` | `0.00` | — | $\pm 300^\circ/\text{s}$ | Tự động cân bằng trục dọc |
+| **Rate PID (Vòng trong 250Hz)** | **Roll Rate** | `1.20` | `0.04` | `0.035` | `0.70` (LPF) | $\pm 400\,\mu\text{s}$ | Phản hồi tốc độ góc Roll (deg/s) |
+| **Rate PID (Vòng trong 250Hz)** | **Pitch Rate** | `1.20` | `0.04` | `0.035` | `0.70` (LPF) | $\pm 400\,\mu\text{s}$ | Phản hồi tốc độ góc Pitch (deg/s) |
+| **Rate PID (Vòng trong 250Hz)** | **Yaw Rate** | `2.50` | `0.08` | `0.000` | — | $\pm 400\,\mu\text{s}$ | Khóa hướng mũi drone (Heading) |
 
 ---
 

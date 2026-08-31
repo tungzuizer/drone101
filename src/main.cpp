@@ -12,6 +12,7 @@
 #include "actuators/MotorController.h"
 #include "control/AttitudeEstimator.h"
 #include "control/SerialControlInput.h"
+#include "control/WifiControlInput.h"
 #include "control/MotorMixer.h"
 #include "safety/FailsafeManager.h"
 
@@ -25,6 +26,7 @@ GpsReader           gps(Serial1);
 MotorController     motors;
 AttitudeEstimator   attitude;
 SerialControlInput  rcInput(Serial);
+WifiControlInput    wifiInput(WIFI_HTTP_PORT, WIFI_WS_PORT);
 MotorMixer          mixer(motors);
 FailsafeManager     failsafe(motors);
 
@@ -40,6 +42,18 @@ uint32_t lastHeartbeatMs    = 0;
 const uint32_t FAST_LOOP_US = 1000000UL / MAIN_LOOP_FREQ_HZ;  // 250Hz -> 4000µs
 const uint32_t MED_LOOP_US  = 20000UL;                         // 50Hz  -> 20000µs (Mag, Baro)
 const uint32_t SLOW_LOOP_US = 100000UL;                        // 10Hz  -> 100000µs (Telemetry GCS)
+
+// =============================================================================
+// FREERTOS TASK CORE 0: XỬ LÝ MẠNG WI-FI & WEBSOCKET CHO ĐIỆN THOẠI
+// Chạy độc lập trên Core 0, không ảnh hưởng vòng lặp bay 250Hz trên Core 1
+// =============================================================================
+void commsTask(void* pvParameters) {
+    Serial.println("[FREERTOS] Comms Task đã khởi động trên Core 0.");
+    while (true) {
+        wifiInput.processNetwork();
+        vTaskDelay(pdMS_TO_TICKS(5)); // Delay 5ms giải phóng CPU Core 0
+    }
+}
 
 // =============================================================================
 // XỬ LÝ LỆNH TỪ GCS TUNER (PID TUNING, CALIBRATION, MOTOR TEST)
@@ -174,8 +188,20 @@ void setup() {
     Serial.println("[INIT] Đang khởi tạo PCA9685 PWM Driver...");
     motors.begin(I2C_ADDR_PCA9685_PRI);
 
-    // 7. Khởi tạo Nguồn nhận tín hiệu điều khiển (Serial / GCS)
+    // 7. Khởi tạo Nguồn nhận tín hiệu điều khiển (Serial / GCS & Wi-Fi Phone Cockpit)
     rcInput.begin();
+    wifiInput.begin();
+
+    // Khởi tạo FreeRTOS Task chạy tác vụ Mạng / Wi-Fi trên Core 0
+    xTaskCreatePinnedToCore(
+        commsTask,          // Hàm thực thi task
+        "CommsTask",        // Tên task
+        8192,               // Kích thước Stack (8KB)
+        NULL,               // Tham số truyền vào
+        1,                  // Mức ưu tiên thấp (Background Comms)
+        NULL,               // Handle task
+        0                   // Chạy ghim cố định trên Core 0 (để Core 1 chuyên trách bay 250Hz)
+    );
 
     // 8. Khởi tạo Bộ ước lượng tư thế không gian (Mahony AHRS Filter)
     attitude.begin(2.5f, 0.005f);
@@ -208,21 +234,44 @@ void loop() {
         float dtSeconds = (float)(currentUs - lastLoopTimeUs) * 1e-6f;
         lastLoopTimeUs = currentUs;
 
-        // 1.1. Cập nhật tín hiệu điều khiển Serial / RC
-        rcInput.update();
-        const ControlData& ctrl = rcInput.getControlData();
+        // Giới hạn dt an toàn chống đột biến vi phân trong PID
+        if (dtSeconds < 0.001f) dtSeconds = 0.001f;
+        else if (dtSeconds > 0.020f) dtSeconds = 0.020f;
 
-        // 1.2. Xử lý yêu cầu ARM / DISARM từ người dùng
+        // 1.1. Cập nhật tín hiệu điều khiển từ các nguồn (Serial GCS & Wi-Fi Phone Cockpit)
+        rcInput.update();
+        wifiInput.update();
+
+        // Trọng tài nguồn điều khiển (Input Arbitration):
+        // Nếu hệ thống đang ARM, giữ cố định nguồn điều khiển đã ARM để Failsafe xử lý nếu mất kết nối
+        static ControlInputSource* armingSource = nullptr;
+        ControlInputSource* activeInput = &rcInput;
+
+        if (motors.isArmed() && armingSource != nullptr) {
+            activeInput = armingSource;
+        } else if (wifiInput.isPhoneConnected()) {
+            activeInput = &wifiInput;
+        }
+        const ControlData& ctrl = activeInput->getControlData();
+
+        // 1.2. Xử lý yêu cầu ARM / DISARM từ người dùng (Edge & Rate-limited Logging)
+        static uint32_t lastArmRejectLogMs = 0;
         if (ctrl.armSwitch && !motors.isArmed()) {
             String denyReason;
             if (failsafe.canArm(ctrl, attitude.getAttitude(), imu.isHealthy(), denyReason)) {
                 motors.arm();
-            } else {
+                armingSource = activeInput;
+                Serial.printf("[ARM OK] Hệ thống đã ARM bởi nguồn: %s\n",
+                              (activeInput == &wifiInput) ? "Wi-Fi Smartphone" : "Serial/RC");
+            } else if (millis() - lastArmRejectLogMs >= 1000) {
+                lastArmRejectLogMs = millis();
                 Serial.printf("[ARM REJECTED] %s\n", denyReason.c_str());
             }
-        } else if (!ctrl.armSwitch && motors.isArmed()) {
+        } else if (!ctrl.armSwitch && motors.isArmed() && activeInput == armingSource) {
             motors.disarm();
             mixer.resetPids();
+            armingSource = nullptr;
+            Serial.println("[DISARM] Đã ngắt động cơ theo lệnh người lái.");
         }
 
         // 1.3. Đọc dữ liệu IMU (Gia tốc kế & Con quay hồi chuyển)
@@ -238,7 +287,7 @@ void loop() {
         }
 
         // 1.5. Giám sát an toàn Failsafe
-        FailsafeState fsState = failsafe.check(rcInput, attitude.getAttitude(), imu.isHealthy());
+        FailsafeState fsState = failsafe.check(*activeInput, attitude.getAttitude(), imu.isHealthy());
 
         // 1.6. Tính toán vòng lặp PID kép và Trộn tín hiệu động cơ Quad-X
         if (fsState == FS_OK || fsState == FS_WARNING) {
@@ -256,6 +305,27 @@ void loop() {
             // Dừng khẩn cấp: Đảm bảo mixer không phát xung và ngắt PID
             mixer.resetPids();
         }
+
+        // 1.7. Đẩy Telemetry thời gian thực vào Mailbox cho Core 0 phát về điện thoại (Lock-Free)
+        const AttitudeData& currentAtt = attitude.getAttitude();
+        const MotorOutputs& currentOut = mixer.getOutputs();
+        const BaroData& currentBaro = baro.getData();
+
+        TelemetryPayload telem;
+        telem.roll = currentAtt.roll;
+        telem.pitch = currentAtt.pitch;
+        telem.yaw = currentAtt.yaw;
+        telem.altitude = currentBaro.relativeAltitude;
+        telem.batteryVoltage = 12.0f; // Mặc định hiển thị hoặc đọc từ ADC pin
+        telem.m1 = currentOut.m1;
+        telem.m2 = currentOut.m2;
+        telem.m3 = currentOut.m3;
+        telem.m4 = currentOut.m4;
+        telem.isArmed = motors.isArmed();
+        telem.failsafeState = static_cast<uint8_t>(fsState);
+        telem.flightLoopTimeUs = micros() - currentUs;
+
+        wifiInput.updateTelemetry(telem);
     }
 
     // -------------------------------------------------------------------------
