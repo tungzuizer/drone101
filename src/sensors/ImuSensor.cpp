@@ -25,25 +25,38 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     address_ = i2cAddress;
     isHealthy_ = false;
 
-    // 1. Kiểm tra ID chip qua thanh ghi WHO_AM_I
+    // 1. Kiểm tra ID chip qua thanh ghi WHO_AM_I (Thử cả địa chỉ 0x68 và 0x69)
     uint8_t whoAmI = 0;
-    if (!readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1)) {
-        Serial.printf("[IMU ERROR] Không thể đọc thanh ghi WHO_AM_I tại địa chỉ 0x%02X\n", address_);
+    bool found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
+
+    if (!found && address_ == I2C_ADDR_MPU6050_PRI) {
+        // Thử địa chỉ phụ 0x69 nếu chân AD0 bị kéo lên 3.3V
+        address_ = I2C_ADDR_MPU6050_ALT;
+        found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
+        if (found) {
+            Serial.printf("[IMU INFO] Tìm thấy MPU6050 tại địa chỉ phụ AD0=3.3V (0x%02X)\n", address_);
+        }
+    }
+
+    if (!found) {
+        Serial.printf("[IMU ERROR] Không thể đọc MPU6050 tại cả 0x68 và 0x69! Hãy kiểm tra dây SDA (GPIO8), SCL (GPIO9), VCC 5V và GND.\n");
         return false;
     }
 
-    if (whoAmI != 0x68 && whoAmI != 0x70 && whoAmI != 0x71) {
-        Serial.printf("[IMU WARN] WHO_AM_I không chuẩn (0x%02X), tiếp tục thử khởi tạo...\n", whoAmI);
+    if (whoAmI != 0x68 && whoAmI != 0x70 && whoAmI != 0x71 && whoAmI != 0x73) {
+        Serial.printf("[IMU WARN] WHO_AM_I nhận được là 0x%02X (Chuẩn MPU6050 là 0x68), tiếp tục khởi tạo...\n", whoAmI);
     }
 
     // 2. Reset MPU6050 để đưa về trạng thái sạch ban đầu
     if (!writeRegister(MPU_REG_PWR_MGMT_1, 0x80)) {
+        Serial.println("[IMU ERROR] Không thể gửi lệnh Reset cho MPU6050!");
         return false;
     }
     delay(100);
 
     // 3. Đánh thức chip và chọn nguồn Clock tối ưu: PLL với trục Gyro X (ổn định hơn bộ dao động nội)
     if (!writeRegister(MPU_REG_PWR_MGMT_1, 0x01)) {
+        Serial.println("[IMU ERROR] Không thể đánh thức MPU6050 (Clock PLL)! Có thể sụt áp VCC.");
         return false;
     }
     delay(15);
@@ -77,8 +90,8 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     accelScaleFactor_ = MPU6050_ACCEL_SCALE;
 
     isHealthy_ = true;
-    Serial.printf("[IMU OK] Khởi tạo MPU6050 thành công (Addr: 0x%02X, Gyro: ±500dps, Acc: ±4g, DLPF: %d)\n",
-                  address_, MPU6050_DLPF_CFG);
+    Serial.printf("[IMU OK] Khởi tạo MPU6050 THÀNH CÔNG (Addr: 0x%02X, WHO_AM_I: 0x%02X, Gyro: ±500dps, Acc: ±4g, DLPF: %d)\n",
+                  address_, whoAmI, MPU6050_DLPF_CFG);
 
     return true;
 }

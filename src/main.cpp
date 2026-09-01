@@ -56,6 +56,72 @@ void commsTask(void* pvParameters) {
 }
 
 // =============================================================================
+// QUÉT & CHẨN ĐOÁN BUS I2C TỰ ĐỘNG
+// =============================================================================
+void scanAndReportI2c(bool autoReinit = true) {
+    Serial.println("\n-------------------------------------------------------");
+    Serial.printf("[I2C SCAN] Đang quét toàn bộ Bus I2C (SDA=GPIO%d, SCL=GPIO%d)...\n", PIN_I2C_SDA, PIN_I2C_SCL);
+    uint8_t count = 0;
+    bool foundMpu = false, foundBmp = false, foundMag = false, foundPca = false;
+    uint8_t mpuAddr = 0, bmpAddr = 0, magAddr = 0, pcaAddr = 0;
+
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            count++;
+            Serial.printf(" -> Tìm thấy thiết bị tại: 0x%02X | ", addr);
+            if (addr == 0x68 || addr == 0x69) {
+                foundMpu = true;
+                mpuAddr = addr;
+                Serial.printf("MPU6050 IMU (Addr: 0x%02X) [OK]\n", addr);
+            } else if (addr == 0x76 || addr == 0x77) {
+                foundBmp = true;
+                bmpAddr = addr;
+                Serial.printf("BMP280 Barometer (Addr: 0x%02X) [OK]\n", addr);
+            } else if (addr == 0x1E || addr == 0x0D) {
+                foundMag = true;
+                magAddr = addr;
+                Serial.printf("La bàn từ trường (Addr: 0x%02X) [OK]\n", addr);
+            } else if (addr == 0x40) {
+                foundPca = true;
+                pcaAddr = addr;
+                Serial.printf("PCA9685 PWM Driver (Addr: 0x%02X) [OK]\n", addr);
+            } else {
+                Serial.println("Thiết bị I2C khác");
+            }
+        }
+    }
+    Serial.printf("[I2C SCAN] Tổng cộng phát hiện: %d thiết bị I2C.\n", count);
+
+    // Gửi gói tin máy đọc cho Web Tuner: $DEV,mpuOk,bmpOk,magOk,pcaOk,mpuAddr,bmpAddr,magAddr,pcaAddr
+    Serial.printf("$DEV,%d,%d,%d,%d,0x%02X,0x%02X,0x%02X,0x%02X\n",
+                  foundMpu ? 1 : 0, foundBmp ? 1 : 0, foundMag ? 1 : 0, foundPca ? 1 : 0,
+                  mpuAddr, bmpAddr, magAddr, pcaAddr);
+
+    if (autoReinit && !motors.isArmed()) {
+        if (foundMpu && !imu.isHealthy()) {
+            Serial.println("[AUTO-REINIT] Đang khởi tạo lại MPU6050...");
+            if (imu.begin(mpuAddr)) {
+                imu.calibrateGyro(300);
+            }
+        }
+        if (foundBmp && !baro.isHealthy()) {
+            Serial.println("[AUTO-REINIT] Đang khởi tạo lại BMP280...");
+            baro.begin(bmpAddr);
+        }
+        if (foundMag && !mag.isHealthy()) {
+            Serial.println("[AUTO-REINIT] Đang khởi tạo lại Magnetometer...");
+            mag.begin();
+        }
+        if (foundPca && !motors.isHealthy()) {
+            Serial.println("[AUTO-REINIT] Đang khởi tạo lại PCA9685...");
+            motors.begin(pcaAddr);
+        }
+    }
+    Serial.println("-------------------------------------------------------\n");
+}
+
+// =============================================================================
 // XỬ LÝ LỆNH TỪ GCS TUNER (PID TUNING, CALIBRATION, MOTOR TEST)
 // =============================================================================
 void handleGcsCommands() {
@@ -120,6 +186,19 @@ void handleGcsCommands() {
                 Serial.println("[CALIB DENIED] Không thể hiệu chuẩn khi đang ARM!");
             }
         }
+    } else if (strcmp(cmd.command, "SCAN_I2C") == 0) {
+        scanAndReportI2c(true);
+    } else if (strcmp(cmd.command, "REINIT_SENSORS") == 0) {
+        if (!motors.isArmed()) {
+            Serial.println("[GCS] Đang tái khởi tạo toàn bộ cảm biến...");
+            imu.begin();
+            mag.begin();
+            baro.begin();
+            motors.begin();
+            scanAndReportI2c(false);
+        } else {
+            Serial.println("[CALIB DENIED] Không thể Reinit khi đang ARM!");
+        }
     }
 }
 
@@ -131,16 +210,22 @@ void sendTelemetryToGcs() {
     const MotorOutputs& out = mixer.getOutputs();
     const ControlData& ctrl = rcInput.getControlData();
     const BaroData& baroData = baro.getData();
+    const ImuData& imuData = imu.getData();
 
-    // Định dạng gói tin: $TEL,roll,pitch,yaw,rateRoll,ratePitch,rateYaw,throttle,m1,m2,m3,m4,alt,armed,fsState
-    Serial.printf("$TEL,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.1f,%d,%d,%d,%d,%.2f,%d,%d\n",
+    // Định dạng gói tin: $TEL,roll,pitch,yaw,rateRoll,ratePitch,rateYaw,throttle,m1,m2,m3,m4,alt,armed,fsState,imuOk,bmpOk,magOk,pcaOk,ax,ay,az
+    Serial.printf("$TEL,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.1f,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%d,%d,%.2f,%.2f,%.2f\n",
                   att.roll, att.pitch, att.yaw,
                   att.rateRoll, att.ratePitch, att.rateYaw,
                   ctrl.throttle,
                   out.m1, out.m2, out.m3, out.m4,
                   baroData.relativeAltitude,
                   motors.isArmed() ? 1 : 0,
-                  (int)failsafe.getState());
+                  (int)failsafe.getState(),
+                  imu.isHealthy() ? 1 : 0,
+                  baro.isHealthy() ? 1 : 0,
+                  mag.isHealthy() ? 1 : 0,
+                  motors.isHealthy() ? 1 : 0,
+                  imuData.ax, imuData.ay, imuData.az);
 }
 
 // =============================================================================
@@ -164,12 +249,15 @@ void setup() {
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQUENCY);
     Wire.setTimeOut(5); // 5ms timeout tránh nghẽn bus trong vòng lặp điều khiển 250Hz
 
+    // Quét nhanh toàn bộ thiết bị I2C để báo cáo và xác định địa chỉ chính xác
+    scanAndReportI2c(false);
+
     // 2. Khởi tạo IMU MPU6050
     Serial.println("[INIT] Đang khởi tạo MPU6050...");
     if (imu.begin(I2C_ADDR_MPU6050_PRI)) {
         imu.calibrateGyro(500); // Lấy mẫu tĩnh hiệu chuẩn Gyro Bias
     } else {
-        Serial.println("[WARN] MPU6050 không tìm thấy, hệ thống sẽ chạy ở chế độ kiểm tra!");
+        Serial.println("[WARN] MPU6050 chưa sẵn sàng! Firmware sẽ tự động thử kết nối lại khi phát hiện cảm biến.");
     }
 
     // 3. Khởi tạo Magnetometer (HMC5883L / QMC5883L tự thích ứng)
@@ -362,10 +450,20 @@ void loop() {
     }
 
     // -------------------------------------------------------------------------
-    // 4. HEARTBEAT (1Hz): Nhịp tim hệ thống
+    // 4. HEARTBEAT (1Hz): Nhịp tim hệ thống & Tự động kết nối lại MPU nếu mất
     // -------------------------------------------------------------------------
     if (millis() - lastHeartbeatMs >= 1000) {
         lastHeartbeatMs = millis();
-        // Có thể bổ sung nhấp nháy LED trạng thái trên ESP32-S3 tại đây
+
+        // Tự động thử kết nối lại MPU6050 nếu lúc bật nguồn chưa cắm và hiện chưa ARM
+        if (!imu.isHealthy() && !motors.isArmed()) {
+            Wire.beginTransmission(I2C_ADDR_MPU6050_PRI);
+            if (Wire.endTransmission() == 0 || (Wire.beginTransmission(I2C_ADDR_MPU6050_ALT), Wire.endTransmission() == 0)) {
+                Serial.println("[AUTO-DETECT] Phát hiện MPU6050 trên Bus I2C! Đang khởi tạo...");
+                if (imu.begin()) {
+                    imu.calibrateGyro(300);
+                }
+            }
+        }
     }
 }

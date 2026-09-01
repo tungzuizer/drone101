@@ -73,6 +73,12 @@ void SerialControlInput::processLine(const char* line) {
         parseMotorTestCommand(line + 5);
     } else if (strncasecmp(line, "CALIB ", 6) == 0) {
         parseCalibCommand(line + 6);
+    } else if (strncasecmp(line, "SCAN", 4) == 0 || strncasecmp(line, "I2C_SCAN", 8) == 0) {
+        strncpy(pendingCmd_.command, "SCAN_I2C", sizeof(pendingCmd_.command) - 1);
+        pendingCmd_.isPending = true;
+    } else if (strncasecmp(line, "REINIT", 6) == 0) {
+        strncpy(pendingCmd_.command, "REINIT_SENSORS", sizeof(pendingCmd_.command) - 1);
+        pendingCmd_.isPending = true;
     } else if (strncasecmp(line, "PING", 4) == 0 || strncasecmp(line, "HEARTBEAT", 9) == 0) {
         data_.isConnected = true;
         data_.lastPacketTimeMs = millis();

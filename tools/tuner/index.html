@@ -707,6 +707,22 @@
                     </div>
                 </div>
 
+                <!-- Gia tốc kế thô (Raw Accel) - Test cực nhạy khi lắc cảm biến -->
+                <div class="metric-grid" style="margin-top: 6px;">
+                    <div class="metric-box" style="border-color: rgba(0, 243, 255, 0.2);">
+                        <div class="metric-label" style="color: var(--cyan);">Raw Accel X</div>
+                        <div class="metric-val" id="valAx" style="font-size: 13px; color: var(--cyan);">0.00 g</div>
+                    </div>
+                    <div class="metric-box" style="border-color: rgba(245, 158, 11, 0.2);">
+                        <div class="metric-label" style="color: var(--amber);">Raw Accel Y</div>
+                        <div class="metric-val" id="valAy" style="font-size: 13px; color: var(--amber);">0.00 g</div>
+                    </div>
+                    <div class="metric-box" style="border-color: rgba(16, 185, 129, 0.2);">
+                        <div class="metric-label" style="color: var(--green);">Raw Accel Z</div>
+                        <div class="metric-val" id="valAz" style="font-size: 13px; color: var(--green);">1.00 g</div>
+                    </div>
+                </div>
+
                 <!-- Motor Output Micro-bars -->
                 <div style="margin-top: 10px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-transform: uppercase;">
                     Xung ngõ ra 4 Động cơ (PCA9685)
@@ -732,6 +748,44 @@
                         <div class="m-box-pulse" id="m4Pulse">1000 µs</div>
                         <div class="m-bar-bg"><div class="m-bar-fill" id="m4Bar"></div></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- CHẨN ĐOÁN PHẦN CỨNG & TEST TỪNG CẢM BIẾN I2C -->
+            <div class="panel" style="border-color: rgba(0, 243, 255, 0.25);">
+                <div class="panel-header">
+                    <span style="color: var(--cyan);">🔍 Chẩn đoán & Test Cảm biến (I2C)</span>
+                    <button class="btn btn-primary" style="padding: 2px 8px; font-size: 10px;" onclick="sendCmd('SCAN')">
+                        Quét Bus I2C
+                    </button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                    <div class="metric-box" style="text-align: left; padding: 6px 8px;">
+                        <div style="font-size: 9px; color: var(--text-muted); font-weight: bold;">MPU6050 IMU</div>
+                        <div id="badgeMpu" style="font-size: 11px; font-weight: bold; margin-top: 2px; color: var(--amber);">Chưa nhận diện</div>
+                    </div>
+                    <div class="metric-box" style="text-align: left; padding: 6px 8px;">
+                        <div style="font-size: 9px; color: var(--text-muted); font-weight: bold;">BMP280 Baro</div>
+                        <div id="badgeBmp" style="font-size: 11px; font-weight: bold; margin-top: 2px; color: var(--amber);">Chưa nhận diện</div>
+                    </div>
+                    <div class="metric-box" style="text-align: left; padding: 6px 8px;">
+                        <div style="font-size: 9px; color: var(--text-muted); font-weight: bold;">La bàn Mag (HMC/QMC)</div>
+                        <div id="badgeMag" style="font-size: 11px; font-weight: bold; margin-top: 2px; color: var(--amber);">Chưa nhận diện</div>
+                    </div>
+                    <div class="metric-box" style="text-align: left; padding: 6px 8px;">
+                        <div style="font-size: 9px; color: var(--text-muted); font-weight: bold;">PCA9685 PWM Driver</div>
+                        <div id="badgePca" style="font-size: 11px; font-weight: bold; margin-top: 2px; color: var(--amber);">Chưa nhận diện</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 6px;">
+                    <button class="btn" style="flex: 1; font-size: 10px; justify-content: center;" onclick="sendCmd('SCAN')">
+                        🔎 Quét toàn bộ Bus I2C
+                    </button>
+                    <button class="btn" style="flex: 1; font-size: 10px; justify-content: center;" onclick="sendCmd('REINIT')">
+                        🔄 Tái khởi tạo Cảm biến
+                    </button>
                 </div>
             </div>
 
@@ -855,6 +909,8 @@
                 </div>
 
                 <div class="quick-chips">
+                    <span class="chip" onclick="sendCmd('SCAN')">🔍 SCAN I2C</span>
+                    <span class="chip" onclick="sendCmd('REINIT')">🔄 REINIT</span>
                     <span class="chip" onclick="sendCmd('PING')">PING</span>
                     <span class="chip" onclick="sendCmd('CALIB GYRO')">CALIB GYRO</span>
                     <span class="chip" onclick="sendCmd('SET MODE ANGLE')">MODE ANGLE</span>
@@ -1105,7 +1161,14 @@
             m1: 1000, m2: 1000, m3: 1000, m4: 1000,
             altitude: 0.0,
             isArmed: false,
-            failsafeState: 0
+            failsafeState: 0,
+            imuOk: false,
+            bmpOk: false,
+            magOk: false,
+            pcaOk: false,
+            ax: 0.0,
+            ay: 0.0,
+            az: 1.0
         };
 
         // Oscilloscope Buffer
@@ -1217,11 +1280,11 @@
         }
 
         // =====================================================================
-        // PARSER GÓI TIN TELEMETRY ($TEL VÀ JSON)
+        // PARSER GÓI TIN TELEMETRY ($TEL, $DEV VÀ JSON)
         // =====================================================================
         function parseSerialPacket(line) {
             // 1. Kiểm tra định dạng $TEL từ main.cpp:
-            // $TEL,roll,pitch,yaw,rateRoll,ratePitch,rateYaw,throttle,m1,m2,m3,m4,alt,armed,fsState
+            // $TEL,roll,pitch,yaw,rateRoll,ratePitch,rateYaw,throttle,m1,m2,m3,m4,alt,armed,fsState,imuOk,bmpOk,magOk,pcaOk,ax,ay,az
             if (line.startsWith("$TEL,")) {
                 const parts = line.split(",");
                 if (parts.length >= 14) {
@@ -1240,6 +1303,16 @@
                     telemetry.isArmed = (parseInt(parts[13]) === 1);
                     telemetry.failsafeState = parseInt(parts[14]) || 0;
 
+                    if (parts.length >= 22) {
+                        telemetry.imuOk = (parseInt(parts[15]) === 1);
+                        telemetry.bmpOk = (parseInt(parts[16]) === 1);
+                        telemetry.magOk = (parseInt(parts[17]) === 1);
+                        telemetry.pcaOk = (parseInt(parts[18]) === 1);
+                        telemetry.ax = parseFloat(parts[19]) || 0;
+                        telemetry.ay = parseFloat(parts[20]) || 0;
+                        telemetry.az = parseFloat(parts[21]) || 1.0;
+                    }
+
                     isArmed = telemetry.isArmed;
                     updateArmTagUI(isArmed);
                     updateTelemetryUI();
@@ -1249,7 +1322,24 @@
                 }
             }
 
-            // 2. Gói tin JSON (nếu có):
+            // 2. Gói tin quét thiết bị I2C: $DEV,mpuOk,bmpOk,magOk,pcaOk,mpuAddr,bmpAddr,magAddr,pcaAddr
+            if (line.startsWith("$DEV,")) {
+                const p = line.split(",");
+                if (p.length >= 9) {
+                    const mpuOk = parseInt(p[1]) === 1;
+                    const bmpOk = parseInt(p[2]) === 1;
+                    const magOk = parseInt(p[3]) === 1;
+                    const pcaOk = parseInt(p[4]) === 1;
+                    updateBadge('badgeMpu', mpuOk, mpuOk ? `Sẵn sàng (${p[5]})` : 'Không tìm thấy');
+                    updateBadge('badgeBmp', bmpOk, bmpOk ? `Sẵn sàng (${p[6]})` : 'Không tìm thấy');
+                    updateBadge('badgeMag', magOk, magOk ? `Sẵn sàng (${p[7]})` : 'Không tìm thấy');
+                    updateBadge('badgePca', pcaOk, pcaOk ? `Sẵn sàng (${p[8]})` : 'Không tìm thấy');
+                    logTerm(`[I2C SCAN] MPU6050: ${mpuOk ? p[5] : 'KHÔNG'}, BMP280: ${bmpOk ? p[6] : 'KHÔNG'}, Mag: ${magOk ? p[7] : 'KHÔNG'}, PCA9685: ${pcaOk ? p[8] : 'KHÔNG'}`);
+                    return;
+                }
+            }
+
+            // 3. Gói tin JSON (nếu có):
             if (line.startsWith("{") && line.endsWith("}")) {
                 try {
                     const obj = JSON.parse(line);
@@ -1272,6 +1362,13 @@
 
             // Ghi ra Serial Console
             logTerm(line);
+        }
+
+        function updateBadge(id, isOk, text) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerText = text;
+            el.style.color = isOk ? "var(--green)" : "var(--red)";
         }
 
         async function sendCmd(cmdStr) {
@@ -1550,6 +1647,21 @@
             document.getElementById('valRateRoll').innerText = telemetry.rateRoll.toFixed(1) + "°/s";
             document.getElementById('valRatePitch').innerText = telemetry.ratePitch.toFixed(1) + "°/s";
             document.getElementById('valRateYaw').innerText = telemetry.rateYaw.toFixed(1) + "°/s";
+
+            // Cập nhật Gia tốc kế thô Ax, Ay, Az
+            if (document.getElementById('valAx')) {
+                document.getElementById('valAx').innerText = telemetry.ax.toFixed(2) + " g";
+                document.getElementById('valAy').innerText = telemetry.ay.toFixed(2) + " g";
+                document.getElementById('valAz').innerText = telemetry.az.toFixed(2) + " g";
+            }
+
+            // Cập nhật trạng thái sống của cảm biến
+            if (telemetry.imuOk !== undefined) {
+                updateBadge('badgeMpu', telemetry.imuOk, telemetry.imuOk ? 'Đang hoạt động (OK)' : 'Lỗi / Chưa nhận');
+                updateBadge('badgeBmp', telemetry.bmpOk, telemetry.bmpOk ? 'Đang hoạt động (OK)' : 'Lỗi / Chưa nhận');
+                updateBadge('badgeMag', telemetry.magOk, telemetry.magOk ? 'Đang hoạt động (OK)' : 'Lỗi / Chưa nhận');
+                updateBadge('badgePca', telemetry.pcaOk, telemetry.pcaOk ? 'Đang hoạt động (OK)' : 'Lỗi / Chưa nhận');
+            }
 
             // Cập nhật Pulse Micro-bars
             document.getElementById('m1Pulse').innerText = telemetry.m1 + " µs";
