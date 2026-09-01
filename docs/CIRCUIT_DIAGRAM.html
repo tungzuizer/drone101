@@ -140,11 +140,11 @@
         /* Hiệu ứng đường dây */
         .wire {
             transition: opacity 0.25s ease, stroke-width 0.2s ease;
+            cursor: pointer;
         }
         .wire:hover {
-            stroke-width: 5 !important;
-            filter: drop-shadow(0 0 8px #fff);
-            cursor: pointer;
+            stroke-width: 6 !important;
+            filter: drop-shadow(0 0 10px #38bdf8) drop-shadow(0 0 4px #fff);
         }
         .wire-dimmed {
             opacity: 0.05 !important;
@@ -153,6 +153,39 @@
             opacity: 1 !important;
             filter: drop-shadow(0 0 10px currentColor);
         }
+        .wire-active-flow {
+            stroke-dasharray: 10 6;
+            animation: flowDash 0.8s linear infinite;
+            stroke-width: 6.5 !important;
+            filter: drop-shadow(0 0 14px currentColor) drop-shadow(0 0 6px #fff) !important;
+            opacity: 1 !important;
+        }
+        @keyframes flowDash {
+            to { stroke-dashoffset: -32; }
+        }
+
+        /* Hiệu ứng Radar Beacon tại chân Pin SVG */
+        @keyframes pinPulse {
+            0% { r: 6px; opacity: 1; stroke-width: 3.5px; }
+            50% { opacity: 0.8; }
+            100% { r: 28px; opacity: 0; stroke-width: 1px; }
+        }
+        @keyframes pinGlow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px currentColor); }
+            50% { transform: scale(1.15); filter: drop-shadow(0 0 16px currentColor); }
+        }
+        .beacon-pulse-src {
+            animation: pinPulse 1.4s ease-out infinite;
+            transform-origin: center;
+        }
+        .beacon-pulse-dest {
+            animation: pinPulse 1.4s ease-out infinite 0.7s;
+            transform-origin: center;
+        }
+        .beacon-core {
+            animation: pinGlow 1.2s ease-in-out infinite;
+        }
+
         .cap-highlight {
             opacity: 1 !important;
             filter: drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 6px #f59e0b) !important;
@@ -172,7 +205,268 @@
         .cap-component:hover {
             filter: drop-shadow(0 0 16px #fbbf24);
         }
-            filter: drop-shadow(0 0 10px #fbbf24);
+
+        /* --- BỘ TRA CỨU & KIỂM TRA CHÂN NỐI CHI TIẾT (PIN-TO-PIN INSPECTOR) --- */
+        .inspector-panel {
+            background: linear-gradient(145deg, #0b1329, #090e1a);
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .inspector-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399, #f59e0b);
+        }
+        .inspector-header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .inspector-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .inspector-title h2 {
+            font-size: 18px;
+            font-weight: 800;
+            color: #f8fafc;
+            letter-spacing: -0.02em;
+        }
+        .inspector-title .badge-live {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .inspector-title .badge-live::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse-cap 1s infinite alternate;
+        }
+
+        /* Search & Dropdown bar */
+        .inspector-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            width: 100%;
+        }
+        .search-box {
+            position: relative;
+            flex: 1;
+            min-width: 260px;
+        }
+        .search-box input {
+            width: 100%;
+            background: #060911;
+            border: 1px solid #334155;
+            color: #f8fafc;
+            padding: 10px 14px 10px 38px;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .search-box input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .wire-select {
+            flex: 1.2;
+            min-width: 280px;
+            background: #060911;
+            border: 1px solid #334155;
+            color: #f8fafc;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .wire-select:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
+        .btn-reset-wire {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid #334155;
+            color: var(--text-secondary);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-reset-wire:hover {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
+        /* Quick Chips */
+        .quick-chips-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+        .quick-chips-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 4px;
+        }
+        .quick-chip {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .quick-chip:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: var(--accent-blue);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+        .quick-chip.active {
+            background: var(--accent-blue);
+            color: #060911;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+
+        /* Inspector Cards Grid */
+        .inspector-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .inspector-card {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+            transition: all 0.25s ease;
+        }
+        .inspector-card:hover {
+            border-color: #334155;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        .inspector-card-src {
+            border-left: 4px solid #38bdf8;
+        }
+        .inspector-card-wire {
+            border-left: 4px solid #f59e0b;
+        }
+        .inspector-card-dest {
+            border-left: 4px solid #10b981;
+        }
+        .inspector-card-safety {
+            border-left: 4px solid #ef4444;
+            grid-column: 1 / -1;
+        }
+        .inspector-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 8px;
+        }
+        .inspector-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .inspector-card-title-src { color: #38bdf8; }
+        .inspector-card-title-wire { color: #fbbf24; }
+        .inspector-card-title-dest { color: #34d399; }
+        .inspector-card-title-safety { color: #f87171; }
+
+        .inspector-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .inspector-label {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+        }
+        .inspector-value {
+            font-size: 13px;
+            color: #f1f5f9;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .inspector-value-highlight {
+            font-size: 14px;
+            font-weight: 800;
+        }
+        .color-badge-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+            font-family: monospace;
+            font-size: 12px;
         }
 
         /* --- Grid Thống Kê & Bảng Dây --- */
@@ -249,17 +543,153 @@
             <p>Bao gồm: 12 dây pha Motor, 8 dây PDB 11.1V, Cầu phân áp VBAT ADC, Còi Buzzer, Đèn Arm LED, RC Receiver, GPS, I2C Bus & Hệ Thống Tụ Lọc Kép (Tụ Gốm 104 + Tụ Hóa 100µF)</p>
         </div>
         <div class="filter-controls">
-            <button class="filter-btn active" onclick="filterWires('all')"><div class="color-dot" style="background:#fff;"></div>Tất cả (All Wires)</button>
-            <button class="filter-btn" onclick="filterWires('grp-caps')"><div class="color-dot" style="background:#f59e0b;"></div>⚡ Hệ Thống Tụ Lọc Kép & Tụ 104</button>
-            <button class="filter-btn" onclick="filterWires('grp-power')"><div class="color-dot" style="background:var(--wire-bat);"></div>Nguồn 11.1V & Motor (12 dây pha)</button>
-            <button class="filter-btn" onclick="filterWires('grp-logic-power')"><div class="color-dot" style="background:var(--wire-3v3);"></div>Nguồn 5V UBEC, 3.3V & GND</button>
-            <button class="filter-btn" onclick="filterWires('grp-i2c')"><div class="color-dot" style="background:var(--wire-sda);"></div>Bus I2C Cảm Biến & Trở Kéo</button>
-            <button class="filter-btn" onclick="filterWires('grp-motor-ctrl')"><div class="color-dot" style="background:var(--wire-pwm);"></div>Tuyến PWM Điều Khiển 4 ESC</button>
-            <button class="filter-btn" onclick="filterWires('grp-adc-buzzer')"><div class="color-dot" style="background:var(--wire-buzzer);"></div>VBAT ADC, Buzzer & Arm LED</button>
-            <button class="filter-btn" onclick="filterWires('grp-comms')"><div class="color-dot" style="background:var(--wire-uart-rx);"></div>GPS UART1 & RC Receiver UART2</button>
-            <button class="filter-btn" onclick="filterWires('grp-cfg-noise')"><div class="color-dot" style="background:var(--accent-yellow);"></div>Chân Cấu Hình Cứng</button>
+            <button class="filter-btn active" onclick="filterWires('all', event)"><div class="color-dot" style="background:#fff;"></div>Tất cả (All Wires)</button>
+            <button class="filter-btn" onclick="filterWires('grp-caps', event)"><div class="color-dot" style="background:#f59e0b;"></div>⚡ Hệ Thống Tụ Lọc Kép & Tụ 104</button>
+            <button class="filter-btn" onclick="filterWires('grp-power', event)"><div class="color-dot" style="background:var(--wire-bat);"></div>Nguồn 11.1V & Motor (12 dây pha)</button>
+            <button class="filter-btn" onclick="filterWires('grp-logic-power', event)"><div class="color-dot" style="background:var(--wire-3v3);"></div>Nguồn 5V UBEC, 3.3V & GND</button>
+            <button class="filter-btn" onclick="filterWires('grp-i2c', event)"><div class="color-dot" style="background:var(--wire-sda);"></div>Bus I2C Cảm Biến & Trở Kéo</button>
+            <button class="filter-btn" onclick="filterWires('grp-motor-ctrl', event)"><div class="color-dot" style="background:var(--wire-pwm);"></div>Tuyến PWM Điều Khiển 4 ESC</button>
+            <button class="filter-btn" onclick="filterWires('grp-adc-buzzer', event)"><div class="color-dot" style="background:var(--wire-buzzer);"></div>VBAT ADC, Buzzer & Arm LED</button>
+            <button class="filter-btn" onclick="filterWires('grp-comms', event)"><div class="color-dot" style="background:var(--wire-uart-rx);"></div>GPS UART1 & RC Receiver UART2</button>
+            <button class="filter-btn" onclick="filterWires('grp-cfg-noise', event)"><div class="color-dot" style="background:var(--accent-yellow);"></div>Chân Cấu Hình Cứng</button>
         </div>
     </header>
+
+    <!-- =================================================================== -->
+    <!-- BỘ TRA CỨU & KIỂM TRA CHÂN NỐI CHI TIẾT (PIN-TO-PIN WIRE INSPECTOR) -->
+    <!-- =================================================================== -->
+    <div class="inspector-panel" id="wireInspectorPanel">
+        <div class="inspector-header">
+            <div class="inspector-title">
+                <h2>🔍 BỘ TRA CỨU & KIỂM TRA CHÂN NỐI CHI TIẾT (PIN-TO-PIN INSPECTOR)</h2>
+                <div class="badge-live">TƯƠNG TÁC THỜI GIAN THỰC</div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary);">
+                Nhấp vào bất kỳ dây nối nào trên sơ đồ SVG hoặc chọn từ danh sách bên dưới để xem chi tiết chân nối!
+            </div>
+        </div>
+
+        <!-- Thanh Tìm Kiếm & Chọn Tuyến Dây -->
+        <div class="inspector-controls">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchWireInput" placeholder="Tìm kiếm chân, GPIO, module (vd: GPIO 8, MPU6050, ESC 2, 11.1V, UBEC, GPS, Buzzer)..." oninput="handleSearchWire(this.value)">
+            </div>
+            <select class="wire-select" id="wireSelectDropdown" onchange="handleSelectDropdown(this.value)">
+                <option value="">-- Chọn một tuyến dây trong 69 kết nối vật lý --</option>
+            </select>
+            <button class="btn-reset-wire" onclick="resetWireSelection()">🔄 Đặt lại / Xem tất cả</button>
+        </div>
+
+        <!-- Các nút bấm nhanh các tuyến dây quan trọng -->
+        <div class="quick-chips-wrapper">
+            <span class="quick-chips-label">⚡ Lối tắt nhanh:</span>
+            <button class="quick-chip" onclick="selectWire('wire-i2c-sda-mpu')"><span style="color:#10b981;">●</span> I2C SDA (GPIO 8)</button>
+            <button class="quick-chip" onclick="selectWire('wire-i2c-scl-mpu')"><span style="color:#06b6d4;">●</span> I2C SCL (GPIO 9)</button>
+            <button class="quick-chip" onclick="selectWire('wire-5v-esp32')"><span style="color:#ef4444;">●</span> UBEC 5V ➔ ESP32 5V</button>
+            <button class="quick-chip" onclick="selectWire('wire-3v3-rail')"><span style="color:#f59e0b;">●</span> LDO 3.3V Cảm Biến</button>
+            <button class="quick-chip" onclick="selectWire('wire-pwm-esc1')"><span style="color:#c084fc;">●</span> ESC 1 PWM (GPIO 4)</button>
+            <button class="quick-chip" onclick="selectWire('wire-phase-m2-u')"><span style="color:#38bdf8;">●</span> ⚡ Đảo Pha Motor 2 (CW)</button>
+            <button class="quick-chip" onclick="selectWire('wire-phase-m3-u')"><span style="color:#38bdf8;">●</span> ⚡ Đảo Pha Motor 3 (CW)</button>
+            <button class="quick-chip" onclick="selectWire('wire-adc-vbat')"><span style="color:#a855f7;">●</span> VBAT ADC (GPIO 1)</button>
+            <button class="quick-chip" onclick="selectWire('wire-buzzer-sig')"><span style="color:#fb923c;">●</span> Còi Buzzer (GPIO 10)</button>
+            <button class="quick-chip" onclick="selectWire('wire-gps-tx-rx')"><span style="color:#ec4899;">●</span> GPS RX/TX (GPIO 17/18)</button>
+            <button class="quick-chip" onclick="selectWire('wire-rc-tx-rx')"><span style="color:#ec4899;">●</span> RC ELRS (GPIO 43/44)</button>
+            <button class="quick-chip" onclick="selectWire('wire-pwr-bat-pos')"><span style="color:#dc2626;">●</span> Pin LiPo ➔ PDB</button>
+        </div>
+
+        <!-- 4 Thẻ Chi Tiết Pin-to-Pin Inspector -->
+        <div class="inspector-cards-grid" id="inspectorCardsGrid">
+            <!-- Thẻ 1: Nguồn Bắt Đầu (Source) -->
+            <div class="inspector-card inspector-card-src">
+                <div class="inspector-card-header">
+                    <span class="inspector-card-title inspector-card-title-src">🛫 1. Điểm Bắt Đầu (Source Pin)</span>
+                    <span class="tag tag-blue" id="inspSrcBoardBadge">Mạch / Bo mạch</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">TÊN CHÂN / KÝ HIỆU</span>
+                    <span class="inspector-value inspector-value-highlight" id="inspSrcPinName" style="color: #38bdf8;">Chưa chọn tuyến dây</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">VỊ TRÍ CHÂN / HEADER PIN</span>
+                    <span class="inspector-value" id="inspSrcPinNumber">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">ĐIỆN ÁP / MỨC LOGIC</span>
+                    <span class="inspector-value" id="inspSrcVoltage">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">VỊ TRÍ HÀN / TRẠM NỐI</span>
+                    <span class="inspector-value" id="inspSrcLocation">-</span>
+                </div>
+            </div>
+
+            <!-- Thẻ 2: Thông Số Tuyến Dây (Physical Wire) -->
+            <div class="inspector-card inspector-card-wire">
+                <div class="inspector-card-header">
+                    <span class="inspector-card-title inspector-card-title-wire">〰️ 2. Thông Số Tuyến Dây Vật Lý</span>
+                    <span class="tag tag-yellow" id="inspWireGroupBadge">Nhóm chức năng</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">MÀU DÂY & MÃ HEX</span>
+                    <div class="inspector-value" id="inspWireColorContainer">
+                        <span class="color-badge-inline" id="inspWireColorBadge">
+                            <span class="color-dot" id="inspWireColorDot" style="background:#fff;"></span>
+                            <span id="inspWireColorHex">#FFFFFF</span>
+                        </span>
+                        <span style="font-size:12px; color:#cbd5e1; margin-left:6px;" id="inspWireColorName">-</span>
+                    </div>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">TIẾT DIỆN DÂY (GAUGE)</span>
+                    <span class="inspector-value" id="inspWireGauge">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">LOẠI TÍN HIỆU & TẦN SỐ</span>
+                    <span class="inspector-value" id="inspWireSignalType">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">LINH KIỆN LỌC / BẢO VỆ ĐI KÈM</span>
+                    <span class="inspector-value" id="inspWireFilter">-</span>
+                </div>
+            </div>
+
+            <!-- Thẻ 3: Điểm Đến (Destination) -->
+            <div class="inspector-card inspector-card-dest">
+                <div class="inspector-card-header">
+                    <span class="inspector-card-title inspector-card-title-dest">🛬 3. Điểm Đến (Destination Pin)</span>
+                    <span class="tag tag-green" id="inspDestBoardBadge">Thiết Bị Đích</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">TÊN CHÂN / KÝ HIỆU ĐÍCH</span>
+                    <span class="inspector-value inspector-value-highlight" id="inspDestPinName" style="color: #34d399;">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">VỊ TRÍ CHÂN / HEADER PIN</span>
+                    <span class="inspector-value" id="inspDestPinNumber">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">ĐIỆN ÁP ĐỊNH MỨC / GIỚI HẠN</span>
+                    <span class="inspector-value" id="inspDestVoltage">-</span>
+                </div>
+                <div class="inspector-item">
+                    <span class="inspector-label">VỊ TRÍ HÀN / TRẠM NỐI</span>
+                    <span class="inspector-value" id="inspDestLocation">-</span>
+                </div>
+            </div>
+
+            <!-- Thẻ 4: Cảnh Báo An Toàn & Hướng Dẫn Kỹ Thuật (Safety & Engineering Instructions) -->
+            <div class="inspector-card inspector-card-safety">
+                <div class="inspector-card-header">
+                    <span class="inspector-card-title inspector-card-title-safety">⚠️ 4. Cảnh Báo An Toàn & Hướng Dẫn Kỹ Thuật Bắt Buộc</span>
+                    <span class="tag tag-red">QUY TẮC PHẦN CỨNG</span>
+                </div>
+                <div class="inspector-value" id="inspWireNote" style="color: #fecaca; line-height: 1.6; font-size: 13px;">
+                    Hãy nhấp vào một đường dây trên sơ đồ mạch SVG hoặc chọn từ danh sách ở trên để hiển thị phân tích an toàn, hướng dẫn đấu dây và các lưu ý kỹ thuật chống cháy nổ!
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- SƠ ĐỒ MẠCH SVG TOÀN BỘ DÂY VẬT LÝ VÀ CHÂN PINOUT -->
     <div class="canvas-card">
@@ -306,6 +736,15 @@
                     <stop offset="60%" stop-color="#d97706"/>
                     <stop offset="100%" stop-color="#b45309"/>
                 </linearGradient>
+
+                <!-- Hiệu ứng phát sáng radar cho Pin Beacons -->
+                <filter id="glow-beacon" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
             </defs>
 
             <!-- LƯỚI TỌA ĐỘ NỀN -->
@@ -815,138 +1254,142 @@
 
             <!-- === NHÓM 1: NGUỒN 11.1V VÀ 12 DÂY PHA MOTOR (grp-power) === -->
             <!-- Pin LiPo (+) -> PDB (+) -->
-            <path class="wire grp-power" d="M 200 110 L 290 95" stroke="#dc2626" stroke-width="5" fill="none"/>
+            <path id="wire-pwr-bat-pos" class="wire grp-power" d="M 200 110 L 290 95" stroke="#dc2626" stroke-width="5" fill="none" onclick="selectWire('wire-pwr-bat-pos')"/>
             <!-- Pin LiPo (-) -> PDB (-) -->
-            <path class="wire grp-power" d="M 170 110 L 290 120" stroke="#475569" stroke-width="5" fill="none"/>
+            <path id="wire-pwr-bat-neg" class="wire grp-power" d="M 170 110 L 290 120" stroke="#475569" stroke-width="5" fill="none" onclick="selectWire('wire-pwr-bat-neg')"/>
 
             <!-- PDB -> UBEC 11.1V In & GND In -->
-            <path class="wire grp-power" d="M 570 65 L 850 65" stroke="#dc2626" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 570 85 L 850 85" stroke="#475569" stroke-width="3" fill="none"/>
+            <path id="wire-pwr-ubec-in-pos" class="wire grp-power" d="M 570 65 L 850 65" stroke="#dc2626" stroke-width="3" fill="none" onclick="selectWire('wire-pwr-ubec-in-pos')"/>
+            <path id="wire-pwr-ubec-in-neg" class="wire grp-power" d="M 570 85 L 850 85" stroke="#475569" stroke-width="3" fill="none" onclick="selectWire('wire-pwr-ubec-in-neg')"/>
 
             <!-- PDB -> Cầu phân áp VBAT 10kΩ -->
-            <path class="wire grp-power" d="M 570 50 L 620 50" stroke="#dc2626" stroke-width="2.5" fill="none"/>
-            <path class="wire grp-power" d="M 570 100 L 620 100" stroke="#475569" stroke-width="2.5" fill="none"/>
+            <path id="wire-pwr-vbat-div-pos" class="wire grp-power" d="M 570 50 L 620 50" stroke="#dc2626" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwr-vbat-div-pos')"/>
+            <path id="wire-pwr-vbat-div-neg" class="wire grp-power" d="M 570 100 L 620 100" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwr-vbat-div-neg')"/>
 
             <!-- PDB -> 4 ESC (8 Dây nguồn công suất to 14-16AWG) -->
             <!-- ESC 2 (Front-Left) -->
-            <path class="wire grp-power" d="M 395 137 L 395 840 L 80 840 L 80 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 413 137 L 413 830 L 105 830 L 105 955" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <path id="wire-pwr-esc2-pos" class="wire grp-power" d="M 395 137 L 395 840 L 80 840 L 80 955" stroke="#dc2626" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc2-pos')"/>
+            <path id="wire-pwr-esc2-neg" class="wire grp-power" d="M 413 137 L 413 830 L 105 830 L 105 955" stroke="#475569" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc2-neg')"/>
 
             <!-- ESC 1 (Front-Right) -->
-            <path class="wire grp-power" d="M 340 137 L 340 840 L 510 840 L 510 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 358 137 L 358 830 L 535 830 L 535 955" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <path id="wire-pwr-esc1-pos" class="wire grp-power" d="M 340 137 L 340 840 L 510 840 L 510 955" stroke="#dc2626" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc1-pos')"/>
+            <path id="wire-pwr-esc1-neg" class="wire grp-power" d="M 358 137 L 358 830 L 535 830 L 535 955" stroke="#475569" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc1-neg')"/>
 
             <!-- ESC 4 (Rear-Left) -->
-            <path class="wire grp-power" d="M 505 137 L 505 840 L 940 840 L 940 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 523 137 L 523 830 L 965 830 L 965 955" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <path id="wire-pwr-esc4-pos" class="wire grp-power" d="M 505 137 L 505 840 L 940 840 L 940 955" stroke="#dc2626" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc4-pos')"/>
+            <path id="wire-pwr-esc4-neg" class="wire grp-power" d="M 523 137 L 523 830 L 965 830 L 965 955" stroke="#475569" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc4-neg')"/>
 
             <!-- ESC 3 (Rear-Right) -->
-            <path class="wire grp-power" d="M 450 137 L 450 840 L 1370 840 L 1370 955" stroke="#dc2626" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-power" d="M 468 137 L 468 830 L 1395 830 L 1395 955" stroke="#475569" stroke-width="3.5" fill="none"/>
+            <path id="wire-pwr-esc3-pos" class="wire grp-power" d="M 450 137 L 450 840 L 1370 840 L 1370 955" stroke="#dc2626" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc3-pos')"/>
+            <path id="wire-pwr-esc3-neg" class="wire grp-power" d="M 468 137 L 468 830 L 1395 830 L 1395 955" stroke="#475569" stroke-width="3.5" fill="none" onclick="selectWire('wire-pwr-esc3-neg')"/>
 
             <!-- 12 DÂY PHA ĐỘNG CƠ NỐI TỪ ESC XUỐNG MOTOR -->
             <!-- ESC 2 -> Motor 2 (Pha A, B, C ĐẢO PHA A-B CHO MOTOR QUAY CW) -->
-            <path class="wire grp-power" d="M 120 970 L 120 1000 L 220 1000 L 220 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 220 970 L 220 990 L 120 990 L 120 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 320 970 L 320 1020" stroke="#34d399" stroke-width="3" fill="none"/>
+            <path id="wire-phase-m2-u" class="wire grp-power" d="M 120 970 L 120 1000 L 220 1000 L 220 1020" stroke="#38bdf8" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m2-u')"/>
+            <path id="wire-phase-m2-v" class="wire grp-power" d="M 220 970 L 220 990 L 120 990 L 120 1020" stroke="#fbbf24" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m2-v')"/>
+            <path id="wire-phase-m2-w" class="wire grp-power" d="M 320 970 L 320 1020" stroke="#34d399" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m2-w')"/>
 
             <!-- ESC 1 -> Motor 1 (Pha A, B, C NỐI THẲNG CHO MOTOR QUAY CCW) -->
-            <path class="wire grp-power" d="M 550 970 L 550 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 650 970 L 650 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 750 970 L 750 1020" stroke="#34d399" stroke-width="3" fill="none"/>
+            <path id="wire-phase-m1-u" class="wire grp-power" d="M 550 970 L 550 1020" stroke="#38bdf8" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m1-u')"/>
+            <path id="wire-phase-m1-v" class="wire grp-power" d="M 650 970 L 650 1020" stroke="#fbbf24" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m1-v')"/>
+            <path id="wire-phase-m1-w" class="wire grp-power" d="M 750 970 L 750 1020" stroke="#34d399" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m1-w')"/>
 
             <!-- ESC 4 -> Motor 4 (Pha A, B, C NỐI THẲNG CHO MOTOR QUAY CCW) -->
-            <path class="wire grp-power" d="M 980 970 L 980 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 1080 970 L 1080 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 1180 970 L 1180 1020" stroke="#34d399" stroke-width="3" fill="none"/>
+            <path id="wire-phase-m4-u" class="wire grp-power" d="M 980 970 L 980 1020" stroke="#38bdf8" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m4-u')"/>
+            <path id="wire-phase-m4-v" class="wire grp-power" d="M 1080 970 L 1080 1020" stroke="#fbbf24" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m4-v')"/>
+            <path id="wire-phase-m4-w" class="wire grp-power" d="M 1180 970 L 1180 1020" stroke="#34d399" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m4-w')"/>
 
             <!-- ESC 3 -> Motor 3 (Pha A, B, C ĐẢO PHA A-B CHO MOTOR QUAY CW) -->
-            <path class="wire grp-power" d="M 1410 970 L 1410 1000 L 1510 1000 L 1510 1020" stroke="#38bdf8" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 1510 970 L 1510 990 L 1410 990 L 1410 1020" stroke="#fbbf24" stroke-width="3" fill="none"/>
-            <path class="wire grp-power" d="M 1610 970 L 1610 1020" stroke="#34d399" stroke-width="3" fill="none"/>
+            <path id="wire-phase-m3-u" class="wire grp-power" d="M 1410 970 L 1410 1000 L 1510 1000 L 1510 1020" stroke="#38bdf8" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m3-u')"/>
+            <path id="wire-phase-m3-v" class="wire grp-power" d="M 1510 970 L 1510 990 L 1410 990 L 1410 1020" stroke="#fbbf24" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m3-v')"/>
+            <path id="wire-phase-m3-w" class="wire grp-power" d="M 1610 970 L 1610 1020" stroke="#34d399" stroke-width="3" fill="none" onclick="selectWire('wire-phase-m3-w')"/>
 
 
             <!-- === NHÓM 2: NGUỒN 5.0V UBEC, 3.3V LDO & COMMON GROUND (grp-logic-power) === -->
             <!-- UBEC 5V Out -> ESP32-S3 Chân 5V/VIN & PCA9685 V+ & Còi 5V -->
-            <path class="wire grp-logic-power" d="M 895 130 L 895 180 L 660 180 L 660 345 L 690 345" stroke="#ef4444" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 895 180 L 1180 180 L 1180 625 L 1240 625" stroke="#ef4444" stroke-width="3" fill="none"/>
-            <path class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 275 L 1220 275" stroke="#ef4444" stroke-width="2.5" fill="none"/> <!-- 5V nuôi RC -->
-            <path class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 420 L 1220 420" stroke="#ef4444" stroke-width="2.5" fill="none"/> <!-- 5V nuôi Buzzer -->
+            <path id="wire-5v-esp32" class="wire grp-logic-power" d="M 895 130 L 895 180 L 660 180 L 660 345 L 690 345" stroke="#ef4444" stroke-width="3.5" fill="none" onclick="selectWire('wire-5v-esp32')"/>
+            <path id="wire-5v-pca" class="wire grp-logic-power" d="M 895 180 L 1180 180 L 1180 625 L 1240 625" stroke="#ef4444" stroke-width="3" fill="none" onclick="selectWire('wire-5v-pca')"/>
+            <path id="wire-5v-rc" class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 275 L 1220 275" stroke="#ef4444" stroke-width="2.5" fill="none" onclick="selectWire('wire-5v-rc')"/> <!-- 5V nuôi RC -->
+            <path id="wire-5v-buzzer" class="wire grp-logic-power" d="M 1180 180 L 1200 180 L 1200 420 L 1220 420" stroke="#ef4444" stroke-width="2.5" fill="none" onclick="selectWire('wire-5v-buzzer')"/> <!-- 5V nuôi Buzzer -->
 
             <!-- Common Ground (GND Mass chung toàn hệ thống) -->
-            <path class="wire grp-logic-power" d="M 965 130 L 965 195 L 645 195 L 645 375 L 690 375" stroke="#475569" stroke-width="3.5" fill="none"/>
-            <path class="wire grp-logic-power" d="M 645 195 L 320 195 L 320 312 L 98 312" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND MPU -->
-            <path class="wire grp-logic-power" d="M 320 312 L 320 487 L 115 487" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND HMC -->
-            <path class="wire grp-logic-power" d="M 320 487 L 320 662 L 90 662" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND BMP -->
-            <path class="wire grp-logic-power" d="M 965 195 L 1160 195 L 1160 132 L 1275 132" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND GPS -->
-            <path class="wire grp-logic-power" d="M 1160 195 L 1160 275 L 1275 275" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND RC -->
-            <path class="wire grp-logic-power" d="M 1160 275 L 1160 590 L 1260 590" stroke="#475569" stroke-width="2.5" fill="none"/> <!-- GND PCA -->
+            <path id="wire-gnd-esp32" class="wire grp-logic-power" d="M 965 130 L 965 195 L 645 195 L 645 375 L 690 375" stroke="#475569" stroke-width="3.5" fill="none" onclick="selectWire('wire-gnd-esp32')"/>
+            <path id="wire-gnd-mpu" class="wire grp-logic-power" d="M 645 195 L 320 195 L 320 312 L 98 312" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-mpu')"/> <!-- GND MPU -->
+            <path id="wire-gnd-hmc" class="wire grp-logic-power" d="M 320 312 L 320 487 L 115 487" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-hmc')"/> <!-- GND HMC -->
+            <path id="wire-gnd-bmp" class="wire grp-logic-power" d="M 320 487 L 320 662 L 90 662" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-bmp')"/> <!-- GND BMP -->
+            <path id="wire-gnd-gps" class="wire grp-logic-power" d="M 965 195 L 1160 195 L 1160 132 L 1275 132" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-gps')"/> <!-- GND GPS -->
+            <path id="wire-gnd-rc" class="wire grp-logic-power" d="M 1160 195 L 1160 275 L 1275 275" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-rc')"/> <!-- GND RC -->
+            <path id="wire-gnd-pca" class="wire grp-logic-power" d="M 1160 275 L 1160 590 L 1260 590" stroke="#475569" stroke-width="2.5" fill="none" onclick="selectWire('wire-gnd-pca')"/> <!-- GND PCA -->
 
             <!-- ESP32-S3 3V3 VOUT -> Rail 3.3V cấp cho MPU, HMC, BMP, GPS, Trở kéo I2C -->
-            <path class="wire grp-logic-power" d="M 690 315 L 630 315 L 630 210 L 305 210 L 305 312 L 55 312" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 MPU -->
-            <path class="wire grp-logic-power" d="M 305 312 L 305 487 L 62 487" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 HMC -->
-            <path class="wire grp-logic-power" d="M 305 487 L 305 662 L 50 662" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 BMP -->
-            <path class="wire grp-logic-power" d="M 305 210 L 415 210 L 415 420" stroke="#f59e0b" stroke-width="2" fill="none"/> <!-- Cấp 3.3V lên 2 trở kéo -->
-            <path class="wire grp-logic-power" d="M 630 210 L 1140 210 L 1140 132 L 1220 132" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 GPS -->
-            <path class="wire grp-logic-power" d="M 1140 210 L 1140 590 L 1215 590" stroke="#f59e0b" stroke-width="2.5" fill="none"/> <!-- 3V3 PCA Logic -->
+            <path id="wire-3v3-rail" class="wire grp-logic-power" d="M 690 315 L 630 315 L 630 210 L 305 210" stroke="#f59e0b" stroke-width="3" fill="none" onclick="selectWire('wire-3v3-rail')"/> <!-- Rail 3.3V phân phối -->
+            <path id="wire-3v3-mpu" class="wire grp-logic-power" d="M 690 315 L 630 315 L 630 210 L 305 210 L 305 312 L 55 312" stroke="#f59e0b" stroke-width="2.5" fill="none" onclick="selectWire('wire-3v3-mpu')"/> <!-- 3V3 MPU -->
+            <path id="wire-3v3-hmc" class="wire grp-logic-power" d="M 305 312 L 305 487 L 62 487" stroke="#f59e0b" stroke-width="2.5" fill="none" onclick="selectWire('wire-3v3-hmc')"/> <!-- 3V3 HMC -->
+            <path id="wire-3v3-bmp" class="wire grp-logic-power" d="M 305 487 L 305 662 L 50 662" stroke="#f59e0b" stroke-width="2.5" fill="none" onclick="selectWire('wire-3v3-bmp')"/> <!-- 3V3 BMP -->
+            <path id="wire-3v3-pullups" class="wire grp-logic-power" d="M 305 210 L 415 210 L 415 420" stroke="#f59e0b" stroke-width="2" fill="none" onclick="selectWire('wire-3v3-pullups')"/> <!-- Cấp 3.3V lên 2 trở kéo -->
+            <path id="wire-3v3-gps" class="wire grp-logic-power" d="M 630 210 L 1140 210 L 1140 132 L 1220 132" stroke="#f59e0b" stroke-width="2.5" fill="none" onclick="selectWire('wire-3v3-gps')"/> <!-- 3V3 GPS -->
+            <path id="wire-3v3-pca" class="wire grp-logic-power" d="M 1140 210 L 1140 590 L 1215 590" stroke="#f59e0b" stroke-width="2.5" fill="none" onclick="selectWire('wire-3v3-pca')"/> <!-- 3V3 PCA Logic -->
 
 
             <!-- === NHÓM 3: BUS I2C CẢM BIẾN (SDA, SCL + TRỞ KÉO 4.7kΩ) (grp-i2c) === -->
             <!-- SDA (ESP32-S3 GPIO 8) -->
-            <path class="wire grp-i2c" d="M 690 540 L 590 540 L 590 312 L 141 312" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA MPU -->
-            <path class="wire grp-i2c" d="M 590 312 L 590 487 L 170 487" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA HMC -->
-            <path class="wire grp-i2c" d="M 590 487 L 590 662 L 128 662" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA BMP -->
-            <path class="wire grp-i2c" d="M 590 540 L 455 540 L 455 515" stroke="#10b981" stroke-width="2" fill="none"/> <!-- Nối vào trở R1 4.7kΩ -->
-            <path class="wire grp-i2c" d="M 690 540 L 600 540 L 600 735 L 1170 735 L 1170 590 L 1305 590" stroke="#10b981" stroke-width="2.5" fill="none"/> <!-- SDA PCA9685 -->
+            <path id="wire-i2c-sda-mpu" class="wire grp-i2c" d="M 690 540 L 590 540 L 590 312 L 141 312" stroke="#10b981" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-sda-mpu')"/> <!-- SDA MPU -->
+            <path id="wire-i2c-sda-hmc" class="wire grp-i2c" d="M 590 312 L 590 487 L 170 487" stroke="#10b981" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-sda-hmc')"/> <!-- SDA HMC -->
+            <path id="wire-i2c-sda-bmp" class="wire grp-i2c" d="M 590 487 L 590 662 L 128 662" stroke="#10b981" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-sda-bmp')"/> <!-- SDA BMP -->
+            <path id="wire-i2c-sda-pullup" class="wire grp-i2c" d="M 590 540 L 455 540 L 455 515" stroke="#10b981" stroke-width="2" fill="none" onclick="selectWire('wire-i2c-sda-pullup')"/> <!-- Nối vào trở R1 4.7kΩ -->
+            <path id="wire-i2c-sda-pca" class="wire grp-i2c" d="M 690 540 L 600 540 L 600 735 L 1170 735 L 1170 590 L 1305 590" stroke="#10b981" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-sda-pca')"/> <!-- SDA PCA9685 -->
 
             <!-- SCL (ESP32-S3 GPIO 9) -->
-            <path class="wire grp-i2c" d="M 690 570 L 575 570 L 575 312 L 184 312" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL MPU -->
-            <path class="wire grp-i2c" d="M 575 312 L 575 487 L 225 487" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL HMC -->
-            <path class="wire grp-i2c" d="M 575 487 L 575 662 L 166 662" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL BMP -->
-            <path class="wire grp-i2c" d="M 575 570 L 475 570 L 475 515" stroke="#06b6d4" stroke-width="2" fill="none"/> <!-- Nối vào trở R2 4.7kΩ -->
-            <path class="wire grp-i2c" d="M 690 570 L 585 570 L 585 750 L 1185 750 L 1185 590 L 1350 590" stroke="#06b6d4" stroke-width="2.5" fill="none"/> <!-- SCL PCA9685 -->
+            <path id="wire-i2c-scl-mpu" class="wire grp-i2c" d="M 690 570 L 575 570 L 575 312 L 184 312" stroke="#06b6d4" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-scl-mpu')"/> <!-- SCL MPU -->
+            <path id="wire-i2c-scl-hmc" class="wire grp-i2c" d="M 575 312 L 575 487 L 225 487" stroke="#06b6d4" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-scl-hmc')"/> <!-- SCL HMC -->
+            <path id="wire-i2c-scl-bmp" class="wire grp-i2c" d="M 575 487 L 575 662 L 166 662" stroke="#06b6d4" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-scl-bmp')"/> <!-- SCL BMP -->
+            <path id="wire-i2c-scl-pullup" class="wire grp-i2c" d="M 575 570 L 475 570 L 475 515" stroke="#06b6d4" stroke-width="2" fill="none" onclick="selectWire('wire-i2c-scl-pullup')"/> <!-- Nối vào trở R2 4.7kΩ -->
+            <path id="wire-i2c-scl-pca" class="wire grp-i2c" d="M 690 570 L 585 570 L 585 750 L 1185 750 L 1185 590 L 1350 590" stroke="#06b6d4" stroke-width="2.5" fill="none" onclick="selectWire('wire-i2c-scl-pca')"/> <!-- SCL PCA9685 -->
 
 
             <!-- === NHÓM 4: TUYẾN XUNG PWM ĐIỀU KHIỂN 4 ESC ĐỘNG CƠ (grp-motor-ctrl) === -->
             <!-- GPIO 4 (PWM ESC 1 - Trước Phải M1 CCW) -->
-            <path class="wire grp-motor-ctrl" d="M 690 410 L 670 410 L 670 820 L 780 820 L 780 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <path id="wire-pwm-esc1" class="wire grp-motor-ctrl" d="M 690 410 L 670 410 L 670 820 L 780 820 L 780 955" stroke="#c084fc" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwm-esc1')"/>
             <!-- GPIO 5 (PWM ESC 2 - Trước Trái M2 CW) -->
-            <path class="wire grp-motor-ctrl" d="M 690 440 L 660 440 L 660 820 L 350 820 L 350 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <path id="wire-pwm-esc2" class="wire grp-motor-ctrl" d="M 690 440 L 660 440 L 660 820 L 350 820 L 350 955" stroke="#c084fc" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwm-esc2')"/>
             <!-- GPIO 6 (PWM ESC 3 - Sau Phải M3 CW) -->
-            <path class="wire grp-motor-ctrl" d="M 690 470 L 650 470 L 650 810 L 1640 810 L 1640 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <path id="wire-pwm-esc3" class="wire grp-motor-ctrl" d="M 690 470 L 650 470 L 650 810 L 1640 810 L 1640 955" stroke="#c084fc" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwm-esc3')"/>
             <!-- GPIO 7 (PWM ESC 4 - Sau Trái M4 CCW) -->
-            <path class="wire grp-motor-ctrl" d="M 690 500 L 640 500 L 640 810 L 1210 810 L 1210 955" stroke="#c084fc" stroke-width="2.5" fill="none"/>
+            <path id="wire-pwm-esc4" class="wire grp-motor-ctrl" d="M 690 500 L 640 500 L 640 810 L 1210 810 L 1210 955" stroke="#c084fc" stroke-width="2.5" fill="none" onclick="selectWire('wire-pwm-esc4')"/>
 
 
             <!-- === NHÓM 5: GIÁM SÁT PIN ADC, BUZZER & ĐÈN ARM LED (grp-adc-buzzer) === -->
             <!-- Cầu phân áp VBAT Out -> ESP32-S3 GPIO 1 (ADC1_CH0) -->
-            <path class="wire grp-adc-buzzer" d="M 710 137 L 710 220 L 620 220 L 620 610 L 690 610" stroke="#a855f7" stroke-width="2.5" fill="none"/>
+            <path id="wire-adc-vbat" class="wire grp-adc-buzzer" d="M 710 137 L 710 220 L 620 220 L 620 610 L 690 610" stroke="#a855f7" stroke-width="2.5" fill="none" onclick="selectWire('wire-adc-vbat')"/>
             <!-- ESP32-S3 GPIO 10 -> Cực B Transistor Còi Buzzer 5V -->
-            <path class="wire grp-adc-buzzer" d="M 690 710 L 620 710 L 620 780 L 1150 780 L 1150 435 L 1220 435" stroke="#fb923c" stroke-width="2.5" fill="none"/>
+            <path id="wire-buzzer-sig" class="wire grp-adc-buzzer" d="M 690 710 L 620 710 L 620 780 L 1150 780 L 1150 435 L 1220 435" stroke="#fb923c" stroke-width="2.5" fill="none" onclick="selectWire('wire-buzzer-sig')"/>
             <!-- ESP32-S3 GPIO 3 -> Đèn Arming LED Đỏ -->
-            <path class="wire grp-adc-buzzer" d="M 690 675 L 610 675 L 610 765 L 1130 765 L 1130 300 L 1200 300" stroke="#ef4444" stroke-width="2" fill="none"/>
+            <path id="wire-led-arm" class="wire grp-adc-buzzer" d="M 690 675 L 610 675 L 610 765 L 1130 765 L 1130 300 L 1200 300" stroke="#ef4444" stroke-width="2" fill="none" onclick="selectWire('wire-led-arm')"/>
 
 
             <!-- === NHÓM 6: GPS UART1 & RC RECEIVER UART2 (grp-comms) === -->
             <!-- GPS TXD -> ESP32-S3 GPIO 17 (U1RXD) -->
-            <path class="wire grp-comms" d="M 1330 132 L 1330 160 L 1120 160 L 1120 315 L 1045 315" stroke="#ec4899" stroke-width="2.5" fill="none"/>
+            <path id="wire-gps-tx-rx" class="wire grp-comms" d="M 1330 132 L 1330 160 L 1120 160 L 1120 315 L 1045 315" stroke="#ec4899" stroke-width="2.5" fill="none" onclick="selectWire('wire-gps-tx-rx')"/>
             <!-- GPS RXD <- ESP32-S3 GPIO 18 (U1TXD) -->
-            <path class="wire grp-comms" d="M 1385 132 L 1385 175 L 1135 175 L 1135 345 L 1045 345" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+            <path id="wire-gps-rx-tx" class="wire grp-comms" d="M 1385 132 L 1385 175 L 1135 175 L 1135 345 L 1045 345" stroke="#3b82f6" stroke-width="2.5" fill="none" onclick="selectWire('wire-gps-rx-tx')"/>
 
             <!-- RC Receiver TX -> ESP32-S3 GPIO 43 (U2RXD) -->
-            <path class="wire grp-comms" d="M 1330 275 L 1330 250 L 1110 250 L 1110 385 L 1045 385" stroke="#ec4899" stroke-width="2.5" fill="none"/>
+            <path id="wire-rc-tx-rx" class="wire grp-comms" d="M 1330 275 L 1330 250 L 1110 250 L 1110 385 L 1045 385" stroke="#ec4899" stroke-width="2.5" fill="none" onclick="selectWire('wire-rc-tx-rx')"/>
             <!-- RC Receiver RX <- ESP32-S3 GPIO 44 (U2TXD) -->
-            <path class="wire grp-comms" d="M 1385 275 L 1385 260 L 1125 260 L 1125 415 L 1045 415" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+            <path id="wire-rc-rx-tx" class="wire grp-comms" d="M 1385 275 L 1385 260 L 1125 260 L 1125 415 L 1045 415" stroke="#3b82f6" stroke-width="2.5" fill="none" onclick="selectWire('wire-rc-rx-tx')"/>
 
 
             <!-- === NHÓM 7: TỤ LỌC NHIỄU VÀ CHÂN CẤU HÌNH CỨNG (grp-cfg-noise) === -->
             <!-- MPU6050 AD0 nối GND (Cố định Addr 0x68) -->
-            <path class="wire grp-cfg-noise" d="M 235 302 L 235 280 L 98 280 L 98 302" stroke="#9333ea" stroke-width="2" fill="none"/>
+            <path id="wire-cfg-mpu-ad0" class="wire grp-cfg-noise" d="M 235 302 L 235 280 L 98 280 L 98 302" stroke="#9333ea" stroke-width="2" fill="none" onclick="selectWire('wire-cfg-mpu-ad0')"/>
             <!-- BMP280 SDO nối GND & CSB nối 3.3V (Addr 0x76 & I2C Mode) -->
-            <path class="wire grp-cfg-noise" d="M 202 652 L 202 630 L 90 630 L 90 652" stroke="#9333ea" stroke-width="2" fill="none"/>
-            <path class="wire grp-cfg-noise" d="M 244 652 L 244 620 L 50 620 L 50 652" stroke="#f59e0b" stroke-width="2" fill="none"/>
+            <path id="wire-cfg-bmp-sdo" class="wire grp-cfg-noise" d="M 202 652 L 202 630 L 90 630 L 90 652" stroke="#9333ea" stroke-width="2" fill="none" onclick="selectWire('wire-cfg-bmp-sdo')"/>
+            <path id="wire-cfg-bmp-csb" class="wire grp-cfg-noise" d="M 244 652 L 244 620 L 50 620 L 50 652" stroke="#f59e0b" stroke-width="2" fill="none" onclick="selectWire('wire-cfg-bmp-csb')"/>
             <!-- PCA9685 OE nối GND (Luôn Enable PWM) -->
-            <path class="wire grp-cfg-noise" d="M 1415 580 L 1415 560 L 1260 560 L 1260 580" stroke="#9333ea" stroke-width="2" fill="none"/>
+            <path id="wire-cfg-pca-oe" class="wire grp-cfg-noise" d="M 1415 580 L 1415 560 L 1260 560 L 1260 580" stroke="#9333ea" stroke-width="2" fill="none" onclick="selectWire('wire-cfg-pca-oe')"/>
+
+            <!-- VÙNG HIỂN THỊ RADAR BEACONS ĐIỂM ĐẦU & ĐIỂM ĐÍCH TRỰC QUAN -->
+            <g id="svg-beacons"></g>
 
         </svg>
     </div>
@@ -1035,22 +1478,292 @@
         </div>
     </div>
 
-    <!-- Script điều khiển lọc lớp dây tương tác -->
+    <!-- Nạp Database Dây Nối & Ánh Xạ Chân 50 Đường Dây Vật Lý -->
+    <script src="circuit-data.js"></script>
+
+    <!-- Script điều khiển Pin-to-Pin Inspector & Lọc Lớp Dây Tương Tác -->
     <script>
-        function filterWires(layerClass) {
+        // Database of wire connections loaded from circuit-data.js
+        const DB = (typeof WIRE_CONNECTIONS_DB !== 'undefined') ? WIRE_CONNECTIONS_DB : [];
+
+        // Initialize Dropdown Menu with Optgroups
+        function initWireInspector() {
+            const dropdown = document.getElementById('wireSelectDropdown');
+            if (!dropdown || DB.length === 0) return;
+
+            dropdown.innerHTML = '<option value="">-- 🎯 Chọn một tuyến dây để kiểm tra chân nối (69 đường dây) --</option>';
+
+            // Group items by groupId & groupName
+            const groups = {};
+            DB.forEach(wire => {
+                if (!groups[wire.groupId]) {
+                    groups[wire.groupId] = {
+                        name: wire.groupName,
+                        wires: []
+                    };
+                }
+                groups[wire.groupId].wires.push(wire);
+            });
+
+            Object.keys(groups).forEach(grpId => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = `📁 ${groups[grpId].name} (${groups[grpId].wires.length} tuyến)`;
+                groups[grpId].wires.forEach(w => {
+                    const opt = document.createElement('option');
+                    opt.value = w.id;
+                    opt.textContent = `${w.name} [${w.gauge}]`;
+                    optgroup.appendChild(opt);
+                });
+                dropdown.appendChild(optgroup);
+            });
+
+            // Showcase initial wire: MPU6050 SDA
+            selectWire('wire-i2c-sda-mpu');
+        }
+
+        // Select and Inspect a Specific Wire
+        function selectWire(wireId, isGroupFilter = false) {
+            if (!wireId) {
+                resetWireSelection();
+                return;
+            }
+
+            const wireData = DB.find(w => w.id === wireId);
+            if (!wireData) return;
+
+            // 1. Update dropdown value
+            const dropdown = document.getElementById('wireSelectDropdown');
+            if (dropdown) dropdown.value = wireId;
+
+            // 2. Update Inspector Card 1: Source Pin
+            const inspSrcPinName = document.getElementById('inspSrcPinName');
+            if (inspSrcPinName) inspSrcPinName.textContent = wireData.source.pin;
+            const inspSrcPinNumber = document.getElementById('inspSrcPinNumber');
+            if (inspSrcPinNumber) inspSrcPinNumber.textContent = wireData.source.pinNumber;
+            const inspSrcVoltage = document.getElementById('inspSrcVoltage');
+            if (inspSrcVoltage) inspSrcVoltage.textContent = wireData.source.voltage;
+            const inspSrcLocation = document.getElementById('inspSrcLocation');
+            if (inspSrcLocation) inspSrcLocation.textContent = wireData.source.location;
+            const inspSrcBoardBadge = document.getElementById('inspSrcBoardBadge');
+            if (inspSrcBoardBadge) inspSrcBoardBadge.textContent = wireData.source.board;
+
+            // 3. Update Inspector Card 2: Physical Wire Specs
+            const inspWireGroupBadge = document.getElementById('inspWireGroupBadge');
+            if (inspWireGroupBadge) inspWireGroupBadge.textContent = wireData.groupName;
+            const inspWireColorDot = document.getElementById('inspWireColorDot');
+            if (inspWireColorDot) inspWireColorDot.style.background = wireData.color;
+            const inspWireColorHex = document.getElementById('inspWireColorHex');
+            if (inspWireColorHex) inspWireColorHex.textContent = wireData.color;
+            const inspWireColorName = document.getElementById('inspWireColorName');
+            if (inspWireColorName) inspWireColorName.textContent = wireData.colorName;
+            const inspWireGauge = document.getElementById('inspWireGauge');
+            if (inspWireGauge) inspWireGauge.textContent = wireData.gauge;
+            const inspWireSignalType = document.getElementById('inspWireSignalType');
+            if (inspWireSignalType) inspWireSignalType.textContent = wireData.signalType;
+            const inspWireFilter = document.getElementById('inspWireFilter');
+            if (inspWireFilter) inspWireFilter.textContent = wireData.filterComponent;
+
+            // 4. Update Inspector Card 3: Destination Pin
+            const inspDestPinName = document.getElementById('inspDestPinName');
+            if (inspDestPinName) inspDestPinName.textContent = wireData.dest.pin;
+            const inspDestPinNumber = document.getElementById('inspDestPinNumber');
+            if (inspDestPinNumber) inspDestPinNumber.textContent = wireData.dest.pinNumber;
+            const inspDestVoltage = document.getElementById('inspDestVoltage');
+            if (inspDestVoltage) inspDestVoltage.textContent = wireData.dest.voltage;
+            const inspDestLocation = document.getElementById('inspDestLocation');
+            if (inspDestLocation) inspDestLocation.textContent = wireData.dest.location;
+            const inspDestBoardBadge = document.getElementById('inspDestBoardBadge');
+            if (inspDestBoardBadge) inspDestBoardBadge.textContent = wireData.dest.board;
+
+            // 5. Update Inspector Card 4: Safety Notes
+            const inspWireNote = document.getElementById('inspWireNote');
+            if (inspWireNote) inspWireNote.innerHTML = wireData.note;
+
+            // 6. SVG Path Highlighting & Electric Flow Animation
+            const allWires = document.querySelectorAll('.wire');
+            const allCaps = document.querySelectorAll('.cap-component');
+
+            allCaps.forEach(c => {
+                c.classList.add('cap-dimmed');
+                c.classList.remove('cap-highlight');
+            });
+
+            const targetPath = document.getElementById(wireId);
+            allWires.forEach(w => {
+                if (w === targetPath) {
+                    w.classList.remove('wire-dimmed');
+                    w.classList.add('wire-highlight');
+                    w.classList.add('wire-active-flow');
+                } else if (isGroupFilter && w.classList.contains(wireData.groupId)) {
+                    w.classList.remove('wire-dimmed');
+                    w.classList.add('wire-highlight');
+                    w.classList.remove('wire-active-flow');
+                } else {
+                    w.classList.add('wire-dimmed');
+                    w.classList.remove('wire-highlight');
+                    w.classList.remove('wire-active-flow');
+                }
+            });
+
+            // 7. Render SVG Radar Beacon Rings
+            renderSvgBeacons(wireData);
+        }
+
+        // Render SVG Pulsing Radar Beacon Rings at Pin Coordinates
+        function renderSvgBeacons(wireData) {
+            const beaconContainer = document.getElementById('svg-beacons');
+            if (!beaconContainer) return;
+
+            beaconContainer.innerHTML = '';
+
+            const src = wireData.source.coords;
+            const dest = wireData.dest.coords;
+            const color = wireData.color || '#38bdf8';
+
+            if (src && typeof src.x === 'number') {
+                const srcG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                srcG.setAttribute('class', 'beacon-group');
+                srcG.innerHTML = `
+                    <circle cx="${src.x}" cy="${src.y}" r="22" fill="none" stroke="${color}" stroke-width="2.5" class="beacon-pulse-src" opacity="0.8"/>
+                    <circle cx="${src.x}" cy="${src.y}" r="8" fill="${color}" filter="url(#glow-beacon)" class="beacon-core"/>
+                    <g transform="translate(${src.x}, ${src.y - 30})">
+                        <rect x="-65" y="-18" width="130" height="22" rx="5" fill="rgba(15, 23, 42, 0.92)" stroke="${color}" stroke-width="1.5"/>
+                        <text x="0" y="-3" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">🛫 ${wireData.source.pin}</text>
+                    </g>
+                `;
+                beaconContainer.appendChild(srcG);
+            }
+
+            if (dest && typeof dest.x === 'number') {
+                const destG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                destG.setAttribute('class', 'beacon-group');
+                destG.innerHTML = `
+                    <circle cx="${dest.x}" cy="${dest.y}" r="22" fill="none" stroke="${color}" stroke-width="2.5" class="beacon-pulse-dest" opacity="0.8"/>
+                    <circle cx="${dest.x}" cy="${dest.y}" r="8" fill="${color}" filter="url(#glow-beacon)" class="beacon-core"/>
+                    <g transform="translate(${dest.x}, ${dest.y - 30})">
+                        <rect x="-65" y="-18" width="130" height="22" rx="5" fill="rgba(15, 23, 42, 0.92)" stroke="${color}" stroke-width="1.5"/>
+                        <text x="0" y="-3" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="bold">🛬 ${wireData.dest.pin}</text>
+                    </g>
+                `;
+                beaconContainer.appendChild(destG);
+            }
+        }
+
+        // Dropdown change handler
+        function handleSelectDropdown(wireId) {
+            if (wireId) {
+                selectWire(wireId);
+            } else {
+                resetWireSelection();
+            }
+        }
+
+        // Search input handler
+        function handleSearchWire(query) {
+            if (!query || query.trim() === '') {
+                return;
+            }
+            const q = query.toLowerCase().trim();
+            const match = DB.find(w =>
+                w.name.toLowerCase().includes(q) ||
+                w.source.pin.toLowerCase().includes(q) ||
+                w.source.board.toLowerCase().includes(q) ||
+                w.dest.pin.toLowerCase().includes(q) ||
+                w.dest.board.toLowerCase().includes(q) ||
+                w.signalType.toLowerCase().includes(q) ||
+                w.colorName.toLowerCase().includes(q) ||
+                w.gauge.toLowerCase().includes(q)
+            );
+            if (match) {
+                selectWire(match.id);
+            }
+        }
+
+        // Reset wire selection & show all
+        function resetWireSelection() {
+            const dropdown = document.getElementById('wireSelectDropdown');
+            if (dropdown) dropdown.value = '';
+            const searchInput = document.getElementById('searchWireInput');
+            if (searchInput) searchInput.value = '';
+
+            const beaconContainer = document.getElementById('svg-beacons');
+            if (beaconContainer) beaconContainer.innerHTML = '';
+
+            const allWires = document.querySelectorAll('.wire');
+            allWires.forEach(w => {
+                w.classList.remove('wire-dimmed');
+                w.classList.remove('wire-highlight');
+                w.classList.remove('wire-active-flow');
+            });
+
+            const allCaps = document.querySelectorAll('.cap-component');
+            allCaps.forEach(c => {
+                c.classList.remove('cap-dimmed');
+                c.classList.remove('cap-highlight');
+            });
+
+            const inspSrcPinName = document.getElementById('inspSrcPinName');
+            if (inspSrcPinName) inspSrcPinName.textContent = 'Chưa chọn tuyến dây';
+            const inspSrcPinNumber = document.getElementById('inspSrcPinNumber');
+            if (inspSrcPinNumber) inspSrcPinNumber.textContent = '-';
+            const inspSrcVoltage = document.getElementById('inspSrcVoltage');
+            if (inspSrcVoltage) inspSrcVoltage.textContent = '-';
+            const inspSrcLocation = document.getElementById('inspSrcLocation');
+            if (inspSrcLocation) inspSrcLocation.textContent = '-';
+            const inspSrcBoardBadge = document.getElementById('inspSrcBoardBadge');
+            if (inspSrcBoardBadge) inspSrcBoardBadge.textContent = 'Chờ chọn...';
+
+            const inspWireGroupBadge = document.getElementById('inspWireGroupBadge');
+            if (inspWireGroupBadge) inspWireGroupBadge.textContent = 'Nhóm chức năng';
+            const inspWireColorDot = document.getElementById('inspWireColorDot');
+            if (inspWireColorDot) inspWireColorDot.style.background = '#fff';
+            const inspWireColorHex = document.getElementById('inspWireColorHex');
+            if (inspWireColorHex) inspWireColorHex.textContent = '#FFFFFF';
+            const inspWireColorName = document.getElementById('inspWireColorName');
+            if (inspWireColorName) inspWireColorName.textContent = '-';
+            const inspWireGauge = document.getElementById('inspWireGauge');
+            if (inspWireGauge) inspWireGauge.textContent = '-';
+            const inspWireSignalType = document.getElementById('inspWireSignalType');
+            if (inspWireSignalType) inspWireSignalType.textContent = '-';
+            const inspWireFilter = document.getElementById('inspWireFilter');
+            if (inspWireFilter) inspWireFilter.textContent = '-';
+
+            const inspDestPinName = document.getElementById('inspDestPinName');
+            if (inspDestPinName) inspDestPinName.textContent = 'Chưa chọn tuyến dây';
+            const inspDestPinNumber = document.getElementById('inspDestPinNumber');
+            if (inspDestPinNumber) inspDestPinNumber.textContent = '-';
+            const inspDestVoltage = document.getElementById('inspDestVoltage');
+            if (inspDestVoltage) inspDestVoltage.textContent = '-';
+            const inspDestLocation = document.getElementById('inspDestLocation');
+            if (inspDestLocation) inspDestLocation.textContent = '-';
+            const inspDestBoardBadge = document.getElementById('inspDestBoardBadge');
+            if (inspDestBoardBadge) inspDestBoardBadge.textContent = 'Chờ chọn...';
+
+            const inspWireNote = document.getElementById('inspWireNote');
+            if (inspWireNote) inspWireNote.innerHTML = 'Nhấp vào bất kỳ đường dây nối nào trên sơ đồ SVG hoặc chọn từ danh sách thả xuống ở trên để kiểm tra chi tiết chân nguồn và chân đích.';
+        }
+
+        // Layer filtering button logic
+        function filterWires(layerClass, evt) {
             const buttons = document.querySelectorAll('.filter-btn');
             buttons.forEach(btn => btn.classList.remove('active'));
-            if (event && event.currentTarget) {
-                event.currentTarget.classList.add('active');
+            if (evt && evt.currentTarget) {
+                evt.currentTarget.classList.add('active');
+            } else {
+                const matchingBtn = document.querySelector(`.filter-btn[onclick*="${layerClass}"]`);
+                if (matchingBtn) matchingBtn.classList.add('active');
             }
 
             const allWires = document.querySelectorAll('.wire');
             const allCaps = document.querySelectorAll('.cap-component');
+            const beaconContainer = document.getElementById('svg-beacons');
+            if (beaconContainer) beaconContainer.innerHTML = '';
 
             if (layerClass === 'all') {
                 allWires.forEach(w => {
                     w.classList.remove('wire-dimmed');
                     w.classList.remove('wire-highlight');
+                    w.classList.remove('wire-active-flow');
                 });
                 allCaps.forEach(c => {
                     c.classList.remove('cap-dimmed');
@@ -1060,6 +1773,7 @@
                 allWires.forEach(w => {
                     w.classList.add('wire-dimmed');
                     w.classList.remove('wire-highlight');
+                    w.classList.remove('wire-active-flow');
                 });
                 allCaps.forEach(c => {
                     c.classList.remove('cap-dimmed');
@@ -1074,13 +1788,25 @@
                         w.classList.add('wire-dimmed');
                         w.classList.remove('wire-highlight');
                     }
+                    w.classList.remove('wire-active-flow');
                 });
                 allCaps.forEach(c => {
                     c.classList.add('cap-dimmed');
                     c.classList.remove('cap-highlight');
                 });
+
+                // Select first wire in that group for inspector info & beacon without dimming sibling wires in group
+                const firstInGroup = DB.find(w => w.groupId === layerClass);
+                if (firstInGroup) {
+                    selectWire(firstInGroup.id, true);
+                }
             }
         }
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            initWireInspector();
+        });
     </script>
 </body>
 </html>
