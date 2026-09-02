@@ -14,6 +14,7 @@
 ImuSensor::ImuSensor()
     : address_(I2C_ADDR_MPU6050_PRI),
       isHealthy_(false),
+      orientation_(IMU_SENSOR_ORIENTATION),
       gyroOffsetX_(0.0f),
       gyroOffsetY_(0.0f),
       gyroOffsetZ_(0.0f),
@@ -104,8 +105,13 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     accelScaleFactor_ = MPU6050_ACCEL_SCALE;
 
     isHealthy_ = true;
-    Serial.printf("[IMU OK] Khởi tạo MPU6050 THÀNH CÔNG (Addr: 0x%02X, WHO_AM_I: 0x%02X, Gyro: ±500dps, Acc: ±4g, DLPF: %d)\n",
-                  address_, whoAmI, MPU6050_DLPF_CFG);
+    const char* orientStr = "DEFAULT (0°)";
+    if (orientation_ == IMU_ALIGN_CW90) orientStr = "CW90 (X->Phải, Y->Sau)";
+    else if (orientation_ == IMU_ALIGN_CW180) orientStr = "CW180 (X->Sau, Y->Phải)";
+    else if (orientation_ == IMU_ALIGN_CCW90) orientStr = "CCW90 (X->Trái, Y->Trước)";
+
+    Serial.printf("[IMU OK] Khởi tạo MPU6050 THÀNH CÔNG (Addr: 0x%02X, WHO_AM_I: 0x%02X, Align: %s, DLPF: %d)\n",
+                  address_, whoAmI, orientStr, MPU6050_DLPF_CFG);
 
     return true;
 }
@@ -138,18 +144,62 @@ bool ImuSensor::update() {
     rawData_.rawGy   = (int16_t)((buffer[10] << 8) | buffer[11]);
     rawData_.rawGz   = (int16_t)((buffer[12] << 8) | buffer[13]);
 
-    // Chuyển đổi sang đơn vị vật lý chuẩn
-    data_.ax = (float)rawData_.rawAx / accelScaleFactor_;
-    data_.ay = (float)rawData_.rawAy / accelScaleFactor_;
-    data_.az = (float)rawData_.rawAz / accelScaleFactor_;
+    // Chuyển đổi sang đơn vị vật lý của cảm biến (Sensor Frame)
+    float sAx = (float)rawData_.rawAx / accelScaleFactor_;
+    float sAy = (float)rawData_.rawAy / accelScaleFactor_;
+    float sAz = (float)rawData_.rawAz / accelScaleFactor_;
 
     // Công thức nhiệt độ MPU6050 từ Datasheet: Temp(°C) = (Raw / 340.0) + 36.53
     data_.temp = ((float)rawData_.rawTemp / 340.0f) + 36.53f;
 
-    // Vận tốc góc sau khi trừ bias offset tĩnh
-    data_.gx = ((float)rawData_.rawGx / gyroScaleFactor_) - gyroOffsetX_;
-    data_.gy = ((float)rawData_.rawGy / gyroScaleFactor_) - gyroOffsetY_;
-    data_.gz = ((float)rawData_.rawGz / gyroScaleFactor_) - gyroOffsetZ_;
+    // Vận tốc góc sau khi trừ bias offset tĩnh trong Sensor Frame
+    float sGx = ((float)rawData_.rawGx / gyroScaleFactor_) - gyroOffsetX_;
+    float sGy = ((float)rawData_.rawGy / gyroScaleFactor_) - gyroOffsetY_;
+    float sGz = ((float)rawData_.rawGz / gyroScaleFactor_) - gyroOffsetZ_;
+
+    // Ánh xạ tọa độ Sensor sang Body Frame của Drone theo góc xoay orientation_
+    switch (orientation_) {
+        case IMU_ALIGN_CW90:
+            // Xoay 90° thuận KĐH: Mũi tên X chỉ sang Phải (+Y_body), Mũi tên Y chỉ ra Sau (-X_body)
+            data_.ax = -sAy;
+            data_.ay =  sAx;
+            data_.az =  sAz;
+            data_.gx = -sGy;
+            data_.gy =  sGx;
+            data_.gz =  sGz;
+            break;
+
+        case IMU_ALIGN_CCW90:
+            // Xoay 90° ngược KĐH: Mũi tên X chỉ sang Trái (-Y_body), Mũi tên Y chỉ ra Trước (+X_body)
+            data_.ax =  sAy;
+            data_.ay = -sAx;
+            data_.az =  sAz;
+            data_.gx =  sGy;
+            data_.gy = -sGx;
+            data_.gz =  sGz;
+            break;
+
+        case IMU_ALIGN_CW180:
+            // Xoay 180°: Mũi tên X chỉ ra Sau (-X_body), Mũi tên Y chỉ sang Phải (-Y_body)
+            data_.ax = -sAx;
+            data_.ay = -sAy;
+            data_.az =  sAz;
+            data_.gx = -sGx;
+            data_.gy = -sGy;
+            data_.gz =  sGz;
+            break;
+
+        case IMU_ALIGN_DEFAULT:
+        default:
+            // Mặc định: Mũi tên X chỉ ra Trước (+X_body), Mũi tên Y chỉ sang Phải (+Y_body)
+            data_.ax = sAx;
+            data_.ay = sAy;
+            data_.az = sAz;
+            data_.gx = sGx;
+            data_.gy = sGy;
+            data_.gz = sGz;
+            break;
+    }
 
     data_.timestampUs = micros();
     return true;

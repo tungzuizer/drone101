@@ -259,6 +259,30 @@ void handleGcsCommands() {
         } else {
             Serial.println("[DENIED] Không thể quét I2C khi đang ARM!");
         }
+    } else if (strcmp(cmd.command, "SET_IMU_ALIGN") == 0) {
+        if (!motors.isArmed()) {
+            if (strcasecmp(cmd.arg1, "CW90") == 0 || strcmp(cmd.arg1, "90") == 0) {
+                imu.setOrientation(IMU_ALIGN_CW90);
+                attitude.reset();
+                Serial.println("[IMU ALIGN] Đã chuyển hướng MPU6050: CW 90° (Mũi tên X sang Phải, Y ra Sau)");
+            } else if (strcasecmp(cmd.arg1, "CCW90") == 0 || strcmp(cmd.arg1, "-90") == 0 || strcmp(cmd.arg1, "270") == 0) {
+                imu.setOrientation(IMU_ALIGN_CCW90);
+                attitude.reset();
+                Serial.println("[IMU ALIGN] Đã chuyển hướng MPU6050: CCW 90° (Mũi tên X sang Trái, Y ra Trước)");
+            } else if (strcasecmp(cmd.arg1, "CW180") == 0 || strcmp(cmd.arg1, "180") == 0) {
+                imu.setOrientation(IMU_ALIGN_CW180);
+                attitude.reset();
+                Serial.println("[IMU ALIGN] Đã chuyển hướng MPU6050: 180° (Mũi tên X ra Sau)");
+            } else if (strcasecmp(cmd.arg1, "DEFAULT") == 0 || strcmp(cmd.arg1, "0") == 0) {
+                imu.setOrientation(IMU_ALIGN_DEFAULT);
+                attitude.reset();
+                Serial.println("[IMU ALIGN] Đã chuyển hướng MPU6050: DEFAULT (Mũi tên X ra Trước, Y sang Trái)");
+            } else {
+                Serial.printf("[IMU ERROR] Góc xoay '%s' không hợp lệ. Hỗ trợ: CW90, CCW90, CW180, DEFAULT\n", cmd.arg1);
+            }
+        } else {
+            Serial.println("[DENIED] Không thể đổi hướng cảm biến khi đang ARM!");
+        }
     } else if (strcmp(cmd.command, "REINIT_SENSORS") == 0) {
         if (!motors.isArmed()) {
             Serial.println("[GCS] Đang tái khởi tạo toàn bộ cảm biến...");

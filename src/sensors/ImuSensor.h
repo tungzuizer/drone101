@@ -36,6 +36,10 @@ public:
     // Cài đặt trực tiếp Offset
     void setGyroOffsets(float offsetX, float offsetY, float offsetZ);
 
+    // Cài đặt và đọc góc xoay hướng lắp đặt cảm biến trên Drone
+    void setOrientation(ImuOrientation orientation) { orientation_ = orientation; }
+    ImuOrientation getOrientation() const { return orientation_; }
+
     // Lấy dữ liệu cảm biến
     const ImuData& getData() const { return data_; }
     const ImuRawData& getRawData() const { return rawData_; }
@@ -52,6 +56,7 @@ public:
 private:
     uint8_t address_;
     bool isHealthy_;
+    ImuOrientation orientation_;
 
     ImuData data_;
     ImuRawData rawData_;

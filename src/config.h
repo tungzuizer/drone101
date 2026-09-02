@@ -71,8 +71,23 @@
 #define I2C_ADDR_PCA9685_ALLCALL 0x70   // All Call Address mặc định của PCA9685
 
 // =============================================================================
-// CẤU HÌNH MPU6050 (IMU)
+// CẤU HÌNH MPU6050 (IMU) & HƯỚNG LẮP ĐẶT (SENSOR ORIENTATION)
 // =============================================================================
+// Các góc xoay lắp đặt MPU6050 trên khung Drone:
+// IMU_ALIGN_DEFAULT : Mũi tên X hướng Trước (Nose), Y hướng Trái
+// IMU_ALIGN_CW90    : Xoay 90° thuận KĐH (Mũi tên X hướng Phải, Y hướng Sau)
+// IMU_ALIGN_CW180   : Xoay 180° (Mũi tên X hướng Sau, Y hướng Phải)
+// IMU_ALIGN_CCW90   : Xoay 90° ngược KĐH (Mũi tên X hướng Trái, Y hướng Trước)
+enum ImuOrientation {
+    IMU_ALIGN_DEFAULT = 0,
+    IMU_ALIGN_CW90    = 1,
+    IMU_ALIGN_CW180   = 2,
+    IMU_ALIGN_CCW90   = 3
+};
+
+// Cấu hình hướng xoay MPU6050 thực tế trên drone (Mặc định CW90 cho lắp vuông góc sang phải)
+#define IMU_SENSOR_ORIENTATION  IMU_ALIGN_CW90
+
 // Gyro Scale: 0=±250dps (131.0 LSB/dps), 1=±500dps (65.5 LSB/dps), 2=±1000dps (32.8 LSB/dps), 3=±2000dps (16.4 LSB/dps)
 #define MPU6050_GYRO_FS_SEL     1       // ±500 deg/s (chuẩn cho Drone bay cân bằng)
 #define MPU6050_GYRO_SCALE      65.5f   // LSB / (deg/s)

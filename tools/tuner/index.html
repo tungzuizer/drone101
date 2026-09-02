@@ -724,27 +724,27 @@
                 </div>
 
                 <!-- Motor Output Micro-bars -->
-                <div style="margin-top: 10px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-transform: uppercase;">
-                    Xung ngõ ra 4 Động cơ (PCA9685)
+                <div style="margin-top: 10px; font-size: 10px; font-weight: bold; color: var(--cyan); text-transform: uppercase;">
+                    Xung ngõ ra 4 Động cơ (ESP32-S3 Native GPIO 4, 5, 6, 7)
                 </div>
                 <div class="motor-bar-grid">
                     <div class="m-box">
-                        <div class="m-box-title">M1 (FR-CCW)</div>
+                        <div class="m-box-title">M1 (GPIO 4 - FR CCW)</div>
                         <div class="m-box-pulse" id="m1Pulse">1000 µs</div>
                         <div class="m-bar-bg"><div class="m-bar-fill" id="m1Bar"></div></div>
                     </div>
                     <div class="m-box">
-                        <div class="m-box-title">M2 (FL-CW)</div>
+                        <div class="m-box-title">M2 (GPIO 5 - FL CW)</div>
                         <div class="m-box-pulse" id="m2Pulse">1000 µs</div>
                         <div class="m-bar-bg"><div class="m-bar-fill" id="m2Bar"></div></div>
                     </div>
                     <div class="m-box">
-                        <div class="m-box-title">M3 (RR-CW)</div>
+                        <div class="m-box-title">M3 (GPIO 6 - RR CW)</div>
                         <div class="m-box-pulse" id="m3Pulse">1000 µs</div>
                         <div class="m-bar-bg"><div class="m-bar-fill" id="m3Bar"></div></div>
                     </div>
                     <div class="m-box">
-                        <div class="m-box-title">M4 (RL-CCW)</div>
+                        <div class="m-box-title">M4 (GPIO 7 - RL CCW)</div>
                         <div class="m-box-pulse" id="m4Pulse">1000 µs</div>
                         <div class="m-bar-bg"><div class="m-bar-fill" id="m4Bar"></div></div>
                     </div>
@@ -820,6 +820,16 @@
                     <button class="btn" style="flex: 1; font-size: 10px;" onclick="sendCmd('CALIB BARO')">🏔️ Set Zero Baro</button>
                     <button class="btn" style="flex: 1; font-size: 10px;" onclick="sendCmd('CALIB MAG')">🧭 Calib Mag</button>
                 </div>
+
+                <div style="margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 10px; color: var(--text-muted); white-space: nowrap;">📐 Hướng MPU:</span>
+                    <select id="selImuAlign" style="flex: 1; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); font-size: 10px; padding: 3px 6px; border-radius: 4px;" onchange="sendCmd('SET_IMU_ALIGN ' + this.value)">
+                        <option value="CW90" selected>CW 90° (Mũi tên X sang Phải - Vuông góc)</option>
+                        <option value="CCW90">CCW 90° (Mũi tên X sang Trái)</option>
+                        <option value="DEFAULT">DEFAULT 0° (Mũi tên X ra Trước)</option>
+                        <option value="CW180">CW 180° (Mũi tên X ra Sau)</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Test 4 Động cơ Độc lập (Không cánh quạt) -->
@@ -835,22 +845,22 @@
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                     <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
-                        <div style="font-size: 10px; font-weight: bold;">M1 (Trước Phải)</div>
+                        <div style="font-size: 10px; font-weight: bold; color: var(--cyan);">M1 (GPIO 4 - Trước Phải)</div>
                         <input type="range" id="m1TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(1, this.value)">
                         <div id="m1TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
                     <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
-                        <div style="font-size: 10px; font-weight: bold;">M2 (Trước Trái)</div>
+                        <div style="font-size: 10px; font-weight: bold; color: var(--cyan);">M2 (GPIO 5 - Trước Trái)</div>
                         <input type="range" id="m2TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(2, this.value)">
                         <div id="m2TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
                     <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
-                        <div style="font-size: 10px; font-weight: bold;">M3 (Sau Phải)</div>
+                        <div style="font-size: 10px; font-weight: bold; color: var(--cyan);">M3 (GPIO 6 - Sau Phải)</div>
                         <input type="range" id="m3TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(3, this.value)">
                         <div id="m3TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
                     <div style="background: var(--bg-card); padding: 6px; border-radius: 4px; text-align: center;">
-                        <div style="font-size: 10px; font-weight: bold;">M4 (Sau Trái)</div>
+                        <div style="font-size: 10px; font-weight: bold; color: var(--cyan);">M4 (GPIO 7 - Sau Trái)</div>
                         <input type="range" id="m4TestSlider" min="0" max="30" value="0" disabled style="width: 100%; accent-color: var(--cyan);" oninput="testMotor(4, this.value)">
                         <div id="m4TestVal" style="font-size: 11px; font-family: monospace;">0%</div>
                     </div>
@@ -913,6 +923,8 @@
                     <span class="chip" onclick="sendCmd('REINIT')">🔄 REINIT</span>
                     <span class="chip" onclick="sendCmd('PING')">PING</span>
                     <span class="chip" onclick="sendCmd('CALIB GYRO')">CALIB GYRO</span>
+                    <span class="chip" onclick="sendCmd('SET_IMU_ALIGN CW90')">📐 MPU CW90</span>
+                    <span class="chip" onclick="sendCmd('SET_IMU_ALIGN CCW90')">📐 MPU CCW90</span>
                     <span class="chip" onclick="sendCmd('SET MODE ANGLE')">MODE ANGLE</span>
                     <span class="chip" onclick="sendCmd('SET MODE ACRO')">MODE ACRO</span>
                     <span class="chip" onclick="sendCmd('DISARM')">DISARM</span>
