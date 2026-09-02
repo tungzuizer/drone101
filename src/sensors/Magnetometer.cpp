@@ -28,35 +28,33 @@ bool Magnetometer::begin() {
     isHealthy_ = false;
     chipType_ = MAG_CHIP_UNKNOWN;
 
-    // 1. Thử nhận diện chip HMC5883L chính hãng tại 0x1E
-    uint8_t idA = 0, idB = 0, idC = 0;
-    if (readRegisters(I2C_ADDR_HMC5883L, HMC_REG_ID_A, &idA, 1) &&
-        readRegisters(I2C_ADDR_HMC5883L, 0x0B, &idB, 1) &&
-        readRegisters(I2C_ADDR_HMC5883L, 0x0C, &idC, 1)) {
-        if (idA == 'H' && idB == '4' && idC == '3') {
-            address_ = I2C_ADDR_HMC5883L;
-            chipType_ = MAG_CHIP_HMC5883L;
-            if (initHMC5883L()) {
+    // 1. Thử nhận diện chip QMC5883L / QMC5883P tại 0x0D (hoặc 0x0C, 0x2C)
+    const uint8_t qmcAddrs[] = {0x0D, 0x0C, 0x2C};
+    for (uint8_t addr : qmcAddrs) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            address_ = addr;
+            chipType_ = MAG_CHIP_QMC5883L;
+            if (initQMC5883L()) {
                 isHealthy_ = true;
-                Serial.println("[MAG OK] Khởi tạo thành công chip chính hãng HMC5883L (0x1E)");
+                Serial.printf("[MAG OK] Khởi tạo thành công chip QMC5883 (Địa chỉ: 0x%02X)\n", addr);
                 return true;
             }
         }
     }
 
-    // 2. Thử nhận diện chip QMC5883L clone tại 0x0D
-    uint8_t qmcId = 0;
-    if (readRegisters(I2C_ADDR_QMC5883L, QMC_REG_CHIP_ID, &qmcId, 1)) {
-        address_ = I2C_ADDR_QMC5883L;
-        chipType_ = MAG_CHIP_QMC5883L;
-        if (initQMC5883L()) {
+    // 2. Thử nhận diện chip HMC5883L / Clone tại 0x1E
+    Wire.beginTransmission(I2C_ADDR_HMC5883L);
+    if (Wire.endTransmission() == 0) {
+        address_ = I2C_ADDR_HMC5883L;
+        chipType_ = MAG_CHIP_HMC5883L;
+        if (initHMC5883L()) {
             isHealthy_ = true;
-            Serial.printf("[MAG OK] Khởi tạo thành công chip clone QMC5883L (0x0D, Chip ID: 0x%02X)\n", qmcId);
+            Serial.println("[MAG OK] Khởi tạo thành công chip HMC5883L (Địa chỉ: 0x1E)");
             return true;
         }
     }
 
-    Serial.println("[MAG ERROR] Không tìm thấy chip từ kế HMC5883L (0x1E) hoặc QMC5883L (0x0D)!");
     return false;
 }
 
@@ -259,9 +257,14 @@ bool Magnetometer::readRegisters(uint8_t devAddr, uint8_t regAddr, uint8_t* buff
     Wire.beginTransmission(devAddr);
     Wire.write(regAddr);
     if (Wire.endTransmission(false) != 0) {
-        return false;
+        // Thử lại với stop condition nếu chip không hỗ trợ repeated-start
+        Wire.beginTransmission(devAddr);
+        Wire.write(regAddr);
+        if (Wire.endTransmission(true) != 0) {
+            return false;
+        }
     }
-    uint8_t count = Wire.requestFrom(devAddr, length);
+    uint8_t count = Wire.requestFrom((int)devAddr, (int)length);
     if (count != length) {
         return false;
     }

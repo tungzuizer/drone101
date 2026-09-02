@@ -13,12 +13,18 @@
 #define ESC_IDLE_PULSE_US   1100    // Xung quay chậm khi Arm (Idle)
 #define ESC_MAX_PULSE_US    2000    // Xung tối đa (100% công suất)
 
+// Chế độ phần cứng điều khiển động cơ
+enum MotorDriverMode {
+    DRIVER_MODE_NATIVE_GPIO = 0,  // Phát xung trực tiếp từ GPIO 4, 5, 6, 7 của ESP32-S3 (LEDC PWM 50Hz)
+    DRIVER_MODE_PCA9685_I2C = 1   // Điều khiển qua IC mở rộng PCA9685 I2C
+};
+
 class MotorController {
 public:
     MotorController();
 
-    // Khởi tạo PCA9685, cấu hình tần số PWM 50Hz cho ESC
-    bool begin(uint8_t i2cAddress = I2C_ADDR_PCA9685_PRI);
+    // Khởi tạo điều khiển động cơ: Hỗ trợ cả Native GPIO LEDC và PCA9685 I2C
+    bool begin(bool usePca9685 = USE_PCA9685_FOR_MOTORS, uint8_t i2cAddress = I2C_ADDR_PCA9685_PRI);
 
     // Kích hoạt động cơ (ARM) - Có kiểm tra an toàn (Cần ga phải = 0)
     bool arm();
@@ -42,9 +48,10 @@ public:
     // Test riêng lẻ 1 động cơ từ phần mềm Tuner GCS (Có kiểm tra an toàn)
     void testMotor(uint8_t motorNum, float percent);
 
-    // Trạng thái Arm
+    // Trạng thái Arm & Chế độ hoạt động
     bool isArmed() const { return isArmed_; }
     bool isHealthy() const { return isHealthy_; }
+    MotorDriverMode getDriverMode() const { return driverMode_; }
 
     // Đọc xung hiện tại của từng động cơ
     uint16_t getMotorPwm(uint8_t motorIndex) const {
@@ -57,11 +64,16 @@ public:
 
 private:
     uint8_t address_;
+    MotorDriverMode driverMode_;
     bool isHealthy_;
     bool isArmed_;
     uint8_t maxTestThrottlePercent_;
 
     uint16_t currentPulseUs_[NUM_MOTORS];
+
+    // Khởi tạo các chế độ
+    bool initNativeGpio();
+    bool initPCA9685(uint8_t i2cAddress);
 
     // Chuyển đổi Microseconds (1000 - 2000µs) sang 12-bit Counts của PCA9685 (0 - 4095)
     uint16_t usToCounts(uint16_t pulseUs);

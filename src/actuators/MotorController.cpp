@@ -27,8 +27,18 @@
 #define PCA9685_OSC_CLOCK_FREQ      25000000.0f
 #define PCA9685_PWM_FREQ_HZ         50.0f   // 50Hz tiêu chuẩn cho ESC RC (Chu kỳ 20,000 µs)
 
+// Cấu hình LEDC Hardware PWM cho ESP32-S3 Native GPIO
+#define LEDC_PWM_FREQ_HZ            50      // 50Hz tiêu chuẩn cho ESC
+#define LEDC_PWM_RES_BITS           14      // Độ phân giải 14-bit (0 - 16383)
+#define LEDC_MAX_DUTY               16383
+
+static const uint8_t MOTOR_PINS[NUM_MOTORS] = {
+    PIN_MOTOR_1, PIN_MOTOR_2, PIN_MOTOR_3, PIN_MOTOR_4
+};
+
 MotorController::MotorController()
     : address_(I2C_ADDR_PCA9685_PRI),
+      driverMode_(DRIVER_MODE_NATIVE_GPIO),
       isHealthy_(false),
       isArmed_(false),
       maxTestThrottlePercent_(MAX_TEST_THROTTLE_PERCENT) {
@@ -37,20 +47,68 @@ MotorController::MotorController()
     }
 }
 
-bool MotorController::begin(uint8_t i2cAddress) {
-    address_ = i2cAddress;
+bool MotorController::begin(bool usePca9685, uint8_t i2cAddress) {
     isHealthy_ = false;
     isArmed_ = false;
 
-    // 1. Kiểm tra kết nối I2C tới PCA9685
+    if (usePca9685) {
+        Serial.println("[MOTOR] Đang khởi tạo driver PCA9685 I2C...");
+        if (initPCA9685(i2cAddress)) {
+            driverMode_ = DRIVER_MODE_PCA9685_I2C;
+            isHealthy_ = true;
+            return true;
+        } else {
+            Serial.println("[MOTOR WARN] PCA9685 I2C thất bại. Tự động chuyển sang chế độ Native GPIO (LEDC)...");
+        }
+    }
+
+    // Khởi tạo trực tiếp qua Native GPIO của ESP32-S3
+    if (initNativeGpio()) {
+        driverMode_ = DRIVER_MODE_NATIVE_GPIO;
+        isHealthy_ = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool MotorController::initNativeGpio() {
+    Serial.println("[MOTOR] Khởi tạo Hardware LEDC PWM trực tiếp trên GPIO 4, 5, 6, 7...");
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        ledcSetup(i, LEDC_PWM_FREQ_HZ, LEDC_PWM_RES_BITS);
+        ledcAttachPin(MOTOR_PINS[i], i);
+        // Đặt xung khởi điểm an toàn 1000µs
+        uint32_t duty = ((uint32_t)ESC_MIN_PULSE_US * LEDC_MAX_DUTY) / 20000UL;
+        ledcWrite(i, duty);
+        currentPulseUs_[i] = ESC_MIN_PULSE_US;
+    }
+    Serial.printf("[MOTOR OK] Khởi tạo Native GPIO LEDC PWM thành công (GPIO 4-7, 50Hz, 14-bit)\n");
+    return true;
+}
+
+bool MotorController::initPCA9685(uint8_t i2cAddress) {
+    address_ = i2cAddress;
+
+    // 1. Kiểm tra kết nối I2C tới PCA9685 (thử địa chỉ chỉ định, nếu không thấy thì quét dải 0x40 - 0x47)
     Wire.beginTransmission(address_);
     if (Wire.endTransmission() != 0) {
-        Serial.printf("[MOTOR ERROR] Không tìm thấy PCA9685 tại địa chỉ 0x%02X!\n", address_);
-        return false;
+        bool found = false;
+        for (uint8_t a = 0x40; a <= 0x47; a++) {
+            Wire.beginTransmission(a);
+            if (Wire.endTransmission() == 0) {
+                address_ = a;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            Serial.printf("[MOTOR ERROR] Không tìm thấy PCA9685 tại địa chỉ 0x%02X (đã quét 0x40-0x47)!\n", i2cAddress);
+            return false;
+        }
     }
 
     // 2. Reset chip: ghi MODE1 = 0x00 (Normal mode)
-    writeRegister(PCA9685_REG_MODE1, 0x00);
+    if (!writeRegister(PCA9685_REG_MODE1, 0x00)) return false;
     delay(10);
 
     // 3. Cấu hình tần số PWM 50Hz cho ESC máy bay
@@ -59,7 +117,7 @@ bool MotorController::begin(uint8_t i2cAddress) {
     uint8_t prescale = (uint8_t)floor(prescaleVal + 0.5f);
 
     uint8_t oldMode = 0;
-    readRegisters(PCA9685_REG_MODE1, &oldMode, 1);
+    if (!readRegisters(PCA9685_REG_MODE1, &oldMode, 1)) return false;
     uint8_t sleepMode = (oldMode & 0x7F) | PCA9685_MODE1_SLEEP; // Chuyển sang Sleep để đổi Prescale
 
     writeRegister(PCA9685_REG_MODE1, sleepMode);
@@ -78,7 +136,6 @@ bool MotorController::begin(uint8_t i2cAddress) {
         currentPulseUs_[i] = ESC_MIN_PULSE_US;
     }
 
-    isHealthy_ = true;
     Serial.printf("[MOTOR OK] Khởi tạo PCA9685 thành công (Addr: 0x%02X, Tần số: 50Hz, Prescale: %d)\n",
                   address_, prescale);
     return true;
@@ -86,7 +143,7 @@ bool MotorController::begin(uint8_t i2cAddress) {
 
 bool MotorController::arm() {
     if (!isHealthy_) {
-        Serial.println("[ARM DENIED] PCA9685 không khỏe mạnh!");
+        Serial.println("[ARM DENIED] Hệ thống động cơ chưa sẵn sàng!");
         return false;
     }
 
@@ -110,11 +167,18 @@ void MotorController::disarm() {
 
 void MotorController::emergencyStop() {
     isArmed_ = false;
-    uint16_t minCounts = usToCounts(ESC_MIN_PULSE_US);
-    // Ghi tức thì vào thanh ghi All LED để cắt PWM ngay lập tức
-    for (uint8_t i = 0; i < 16; i++) {
-        setChannelPwm(i, 0, minCounts);
+    if (driverMode_ == DRIVER_MODE_PCA9685_I2C) {
+        uint16_t minCounts = usToCounts(ESC_MIN_PULSE_US);
+        for (uint8_t i = 0; i < 16; i++) {
+            setChannelPwm(i, 0, minCounts);
+        }
+    } else {
+        uint32_t minDuty = ((uint32_t)ESC_MIN_PULSE_US * LEDC_MAX_DUTY) / 20000UL;
+        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+            ledcWrite(i, minDuty);
+        }
     }
+
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         currentPulseUs_[i] = ESC_MIN_PULSE_US;
     }
@@ -134,8 +198,14 @@ void MotorController::setMotorPwm(uint8_t motorIndex, uint16_t pulseUs) {
     }
 
     currentPulseUs_[motorIndex] = pulseUs;
-    uint16_t offCount = usToCounts(pulseUs);
-    setChannelPwm(motorIndex, 0, offCount);
+
+    if (driverMode_ == DRIVER_MODE_PCA9685_I2C) {
+        uint16_t offCount = usToCounts(pulseUs);
+        setChannelPwm(motorIndex, 0, offCount);
+    } else {
+        uint32_t duty = ((uint32_t)pulseUs * LEDC_MAX_DUTY) / 20000UL;
+        ledcWrite(motorIndex, duty);
+    }
 }
 
 void MotorController::setMotorPercent(uint8_t motorIndex, float percent) {
@@ -156,7 +226,7 @@ void MotorController::setAllMotorsPwm(uint16_t m1Us, uint16_t m2Us, uint16_t m3U
 
 void MotorController::testMotor(uint8_t motorNum, float percent) {
     if (!isHealthy_) {
-        Serial.println("[TEST ERROR] PCA9685 không khả dụng!");
+        Serial.println("[TEST ERROR] Bộ điều khiển động cơ không khả dụng!");
         return;
     }
 
@@ -180,13 +250,25 @@ void MotorController::testMotor(uint8_t motorNum, float percent) {
 
     if (percent == 0.0f) {
         currentPulseUs_[idx] = ESC_MIN_PULSE_US;
-        setChannelPwm(idx, 0, usToCounts(ESC_MIN_PULSE_US));
+        if (driverMode_ == DRIVER_MODE_PCA9685_I2C) {
+            setChannelPwm(idx, 0, usToCounts(ESC_MIN_PULSE_US));
+        } else {
+            uint32_t duty = ((uint32_t)ESC_MIN_PULSE_US * LEDC_MAX_DUTY) / 20000UL;
+            ledcWrite(idx, duty);
+        }
         Serial.printf("[TEST MOTOR] M%d -> STOP (1000µs)\n", motorNum);
     } else {
         uint16_t pulse = ESC_MIN_PULSE_US + (uint16_t)(percent * 10.0f);
         currentPulseUs_[idx] = pulse;
-        setChannelPwm(idx, 0, usToCounts(pulse));
-        Serial.printf("[TEST MOTOR] M%d -> %.1f%% (%dµs)\n", motorNum, percent, pulse);
+        if (driverMode_ == DRIVER_MODE_PCA9685_I2C) {
+            setChannelPwm(idx, 0, usToCounts(pulse));
+        } else {
+            uint32_t duty = ((uint32_t)pulse * LEDC_MAX_DUTY) / 20000UL;
+            ledcWrite(idx, duty);
+        }
+        Serial.printf("[TEST MOTOR] M%d -> %.1f%% (%dµs) [Mode: %s]\n",
+                      motorNum, percent, pulse,
+                      driverMode_ == DRIVER_MODE_PCA9685_I2C ? "PCA9685" : "Native GPIO");
     }
 }
 

@@ -5,7 +5,9 @@
 #define MPU_REG_CONFIG          0x1A
 #define MPU_REG_GYRO_CONFIG     0x1B
 #define MPU_REG_ACCEL_CONFIG    0x1C
+#define MPU_REG_INT_PIN_CFG     0x37
 #define MPU_REG_ACCEL_XOUT_H    0x3B
+#define MPU_REG_USER_CTRL       0x6A
 #define MPU_REG_PWR_MGMT_1      0x6B
 #define MPU_REG_WHO_AM_I        0x75
 
@@ -25,21 +27,29 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     address_ = i2cAddress;
     isHealthy_ = false;
 
-    // 1. Kiểm tra ID chip qua thanh ghi WHO_AM_I (Thử cả địa chỉ 0x68 và 0x69)
-    uint8_t whoAmI = 0;
-    bool found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
+    // Kiểm tra nhanh sự hiện diện vật lý trên bus I2C trước khi đọc thanh ghi
+    Wire.beginTransmission(address_);
+    bool deviceFound = (Wire.endTransmission() == 0);
 
-    if (!found && address_ == I2C_ADDR_MPU6050_PRI) {
-        // Thử địa chỉ phụ 0x69 nếu chân AD0 bị kéo lên 3.3V
+    if (!deviceFound && address_ == I2C_ADDR_MPU6050_PRI) {
         address_ = I2C_ADDR_MPU6050_ALT;
-        found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
-        if (found) {
+        Wire.beginTransmission(address_);
+        deviceFound = (Wire.endTransmission() == 0);
+        if (deviceFound) {
             Serial.printf("[IMU INFO] Tìm thấy MPU6050 tại địa chỉ phụ AD0=3.3V (0x%02X)\n", address_);
         }
     }
 
-    if (!found) {
-        Serial.printf("[IMU ERROR] Không thể đọc MPU6050 tại cả 0x68 và 0x69! Hãy kiểm tra dây SDA (GPIO8), SCL (GPIO9), VCC 5V và GND.\n");
+    if (!deviceFound) {
+        Serial.printf("[IMU ERROR] Không phát hiện MPU6050 tại 0x68 hoặc 0x69! Hãy kiểm tra dây SDA(GPIO%d), SCL(GPIO%d), VCC và GND.\n",
+                      PIN_I2C_SDA, PIN_I2C_SCL);
+        return false;
+    }
+
+    // 1. Đọc ID chip qua thanh ghi WHO_AM_I
+    uint8_t whoAmI = 0;
+    if (!readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1)) {
+        Serial.println("[IMU ERROR] Không thể đọc thanh ghi WHO_AM_I của MPU6050!");
         return false;
     }
 
@@ -84,6 +94,10 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     if (!writeRegister(MPU_REG_ACCEL_CONFIG, accelConfigVal)) {
         return false;
     }
+
+    // 8. Bật chế độ I2C Bypass (Cho phép Magnetometer kết nối trực tiếp hoặc qua chân XDA/XCL của MPU6050)
+    writeRegister(MPU_REG_USER_CTRL, 0x00);   // Tắt I2C Master nội
+    writeRegister(MPU_REG_INT_PIN_CFG, 0x02); // Bật I2C Bypass multiplexer
 
     // Cập nhật hệ số chia tỷ lệ tương ứng
     gyroScaleFactor_  = MPU6050_GYRO_SCALE;
@@ -163,6 +177,9 @@ bool ImuSensor::calibrateGyro(uint16_t sampleCount) {
     // Đợi 200ms để cảm biến ổn định
     delay(200);
 
+    if (sampleCount < 10) sampleCount = 10;
+    uint16_t progressStep = sampleCount / 10;
+
     uint16_t validSamples = 0;
     for (uint16_t i = 0; i < sampleCount; i++) {
         if (update()) {
@@ -173,7 +190,7 @@ bool ImuSensor::calibrateGyro(uint16_t sampleCount) {
         }
         delay(4); // Lấy mẫu ở tần số ~250Hz
 
-        if (i % (sampleCount / 10) == 0) {
+        if (progressStep > 0 && (i % progressStep == 0)) {
             Serial.printf("  Tiến độ: %d%%\n", (i * 100) / sampleCount);
         }
     }

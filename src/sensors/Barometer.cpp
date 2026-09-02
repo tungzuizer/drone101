@@ -24,19 +24,24 @@ bool Barometer::begin(uint8_t i2cAddress) {
     address_ = i2cAddress;
     isHealthy_ = false;
 
+    // Kiểm tra nhanh sự hiện diện vật lý trên bus I2C trước khi đọc thanh ghi
+    Wire.beginTransmission(address_);
+    bool deviceFound = (Wire.endTransmission() == 0);
+
+    if (!deviceFound && address_ == I2C_ADDR_BMP280_PRI) {
+        address_ = I2C_ADDR_BMP280_ALT;
+        Wire.beginTransmission(address_);
+        deviceFound = (Wire.endTransmission() == 0);
+    }
+
+    if (!deviceFound) {
+        return false;
+    }
+
     // 1. Kiểm tra Chip ID
     uint8_t chipId = 0;
     if (!readRegisters(BMP_REG_CHIP_ID, &chipId, 1)) {
-        // Thử địa chỉ phụ nếu địa chỉ chính không phản hồi
-        if (address_ == I2C_ADDR_BMP280_PRI) {
-            address_ = I2C_ADDR_BMP280_ALT;
-            if (!readRegisters(BMP_REG_CHIP_ID, &chipId, 1)) {
-                Serial.println("[BARO ERROR] Không tìm thấy BMP280 ở cả 0x76 và 0x77!");
-                return false;
-            }
-        } else {
-            return false;
-        }
+        return false;
     }
 
     if (chipId != 0x58 && chipId != 0x60 && chipId != 0x56 && chipId != 0x57) {

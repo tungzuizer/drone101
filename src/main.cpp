@@ -56,12 +56,58 @@ void commsTask(void* pvParameters) {
 }
 
 // =============================================================================
+// KIỂM TRA PHẦN CỨNG & KHÔI PHỤC BUS I2C
+// =============================================================================
+void recoverAndCheckI2cBus(uint8_t sdaPin, uint8_t sclPin) {
+    pinMode(sdaPin, INPUT_PULLUP);
+    pinMode(sclPin, INPUT_PULLUP);
+    delay(20);
+
+    int sdaState = digitalRead(sdaPin);
+    int sclState = digitalRead(sclPin);
+
+    Serial.printf("[I2C HARDWARE CHECK] Điện áp chân: SDA (GPIO%d)=%s | SCL (GPIO%d)=%s\n",
+                  sdaPin, sdaState ? "HIGH (3.3V) [OK]" : "LOW (0V) [CẢNH BÁO: CHẬP MASS HOẶC THIẾU NGUỒN!]",
+                  sclPin, sclState ? "HIGH (3.3V) [OK]" : "LOW (0V) [CẢNH BÁO: CHẬP MASS HOẶC THIẾU NGUỒN!]");
+    Serial.flush();
+
+    if (sdaState == LOW || sclState == LOW) {
+        Serial.println("[I2C RECOVERY] Đang thực hiện chuỗi 9 xung SCL giải phóng Bus I2C...");
+        pinMode(sclPin, OUTPUT);
+        for (int i = 0; i < 9; i++) {
+            digitalWrite(sclPin, LOW);
+            delayMicroseconds(10);
+            digitalWrite(sclPin, HIGH);
+            delayMicroseconds(10);
+        }
+        pinMode(sdaPin, OUTPUT);
+        digitalWrite(sdaPin, LOW);
+        delayMicroseconds(10);
+        digitalWrite(sclPin, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(sdaPin, HIGH);
+        delayMicroseconds(10);
+
+        pinMode(sdaPin, INPUT_PULLUP);
+        pinMode(sclPin, INPUT_PULLUP);
+        delay(20);
+    }
+}
+
+// =============================================================================
 // QUÉT & CHẨN ĐOÁN BUS I2C TỰ ĐỘNG
 // =============================================================================
 void scanAndReportI2c(bool autoReinit = true) {
     Serial.println("\n-------------------------------------------------------");
     Serial.printf("[I2C SCAN] Đang quét toàn bộ Bus I2C (SDA=GPIO%d, SCL=GPIO%d)...\n", PIN_I2C_SDA, PIN_I2C_SCL);
+    Serial.flush();
     uint8_t count = 0;
+    // Gửi lệnh I2C General Call Software Reset (0x06 tới 0x00) để giải phóng các chip PCA9685/ cảm biến bị kẹt trạng thái
+    Wire.beginTransmission(0x00);
+    Wire.write(0x06);
+    Wire.endTransmission();
+    delay(10);
+
     bool foundMpu = false, foundBmp = false, foundMag = false, foundPca = false;
     uint8_t mpuAddr = 0, bmpAddr = 0, magAddr = 0, pcaAddr = 0;
 
@@ -78,20 +124,41 @@ void scanAndReportI2c(bool autoReinit = true) {
                 foundBmp = true;
                 bmpAddr = addr;
                 Serial.printf("BMP280 Barometer (Addr: 0x%02X) [OK]\n", addr);
-            } else if (addr == 0x1E || addr == 0x0D) {
+            } else if (addr == 0x1E || addr == 0x0D || addr == 0x0C || addr == 0x2C) {
                 foundMag = true;
                 magAddr = addr;
-                Serial.printf("La bàn từ trường (Addr: 0x%02X) [OK]\n", addr);
-            } else if (addr == 0x40) {
+                Serial.printf("La bàn từ trường QMC/HMC (Addr: 0x%02X) [OK]\n", addr);
+            } else if (addr >= 0x40 && addr <= 0x47) {
                 foundPca = true;
                 pcaAddr = addr;
                 Serial.printf("PCA9685 PWM Driver (Addr: 0x%02X) [OK]\n", addr);
+            } else if (addr == 0x70) {
+                if (!foundPca) {
+                    foundPca = true;
+                    pcaAddr = 0x40;
+                }
+                Serial.println("PCA9685 All-Call Address (0x70) [OK]");
             } else {
                 Serial.println("Thiết bị I2C khác");
             }
+            Serial.flush();
         }
     }
     Serial.printf("[I2C SCAN] Tổng cộng phát hiện: %d thiết bị I2C.\n", count);
+    if (!foundMpu) {
+        Serial.println("  [!] MPU6050: KHÔNG TÌM THẤY tại 0x68/0x69 (Kiểm tra chân SDA/SCL/VCC/GND)");
+    }
+    if (!foundBmp) {
+        Serial.println("  [!] BMP280: KHÔNG TÌM THẤY tại 0x76/0x77 (Kiểm tra nguồn 3.3V, chân CSB kéo cao)");
+    }
+    if (!foundMag) {
+        Serial.println("  [!] Magnetometer: KHÔNG TÌM THẤY tại 0x0D/0x0C/0x2C/0x1E (Nếu nối qua MPU6050 XDA/XCL, cần I2C Bypass)");
+    }
+    if (!foundPca) {
+        Serial.println("  [!] PCA9685: KHÔNG PHẢN HỒI tại 0x40-0x47 (VCC logic chân header chưa có nguồn hoặc cáp I2C lỏng)");
+        Serial.println("      -> Firmware tự động sử dụng Native ESP32-S3 Hardware LEDC PWM trên GPIO 4, 5, 6, 7 cho ESC");
+    }
+    Serial.flush();
 
     // Gửi gói tin máy đọc cho Web Tuner: $DEV,mpuOk,bmpOk,magOk,pcaOk,mpuAddr,bmpAddr,magAddr,pcaAddr
     Serial.printf("$DEV,%d,%d,%d,%d,0x%02X,0x%02X,0x%02X,0x%02X\n",
@@ -115,7 +182,7 @@ void scanAndReportI2c(bool autoReinit = true) {
         }
         if (foundPca && !motors.isHealthy()) {
             Serial.println("[AUTO-REINIT] Đang khởi tạo lại PCA9685...");
-            motors.begin(pcaAddr);
+            motors.begin(true, pcaAddr);
         }
     }
     Serial.println("-------------------------------------------------------\n");
@@ -187,14 +254,18 @@ void handleGcsCommands() {
             }
         }
     } else if (strcmp(cmd.command, "SCAN_I2C") == 0) {
-        scanAndReportI2c(true);
+        if (!motors.isArmed()) {
+            scanAndReportI2c(true);
+        } else {
+            Serial.println("[DENIED] Không thể quét I2C khi đang ARM!");
+        }
     } else if (strcmp(cmd.command, "REINIT_SENSORS") == 0) {
         if (!motors.isArmed()) {
             Serial.println("[GCS] Đang tái khởi tạo toàn bộ cảm biến...");
             imu.begin();
             mag.begin();
             baro.begin();
-            motors.begin();
+            motors.begin(USE_PCA9685_FOR_MOTORS, I2C_ADDR_PCA9685_PRI);
             scanAndReportI2c(false);
         } else {
             Serial.println("[CALIB DENIED] Không thể Reinit khi đang ARM!");
@@ -233,51 +304,65 @@ void sendTelemetryToGcs() {
 // =============================================================================
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
-
-    // Chờ kết nối Serial USB CDC trên ESP32-S3
-    unsigned long startWait = millis();
-    while (!Serial && (millis() - startWait < 2000)) {
-        delay(10);
-    }
+    delay(100); // Ổn định Serial sau khởi động
 
     Serial.println("\n\n=======================================================");
     Serial.println("  ESP32-S3 HIGH-RELIABILITY FLIGHT CONTROLLER FIRMWARE  ");
     Serial.println("  Tần số điều khiển: 250Hz | Cấu hình Quadcopter: Quad-X");
     Serial.println("=======================================================");
+    Serial.flush();
 
-    // 1. Khởi tạo Bus I2C với SDA=GPIO8, SCL=GPIO9 ở 400kHz
+    // 1. Kiểm tra trạng thái điện áp chân SDA/SCL và giải phóng Bus nếu bị treo
+    recoverAndCheckI2cBus(PIN_I2C_SDA, PIN_I2C_SCL);
+
+    // Khởi tạo Bus I2C với SDA=GPIO8, SCL=GPIO9 ở 400kHz
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQUENCY);
-    Wire.setTimeOut(5); // 5ms timeout tránh nghẽn bus trong vòng lặp điều khiển 250Hz
+    Wire.setTimeOut(25); // 25ms timeout tránh nghẽn bus
+    Serial.flush();
 
     // Quét nhanh toàn bộ thiết bị I2C để báo cáo và xác định địa chỉ chính xác
     scanAndReportI2c(false);
+    Serial.flush();
 
     // 2. Khởi tạo IMU MPU6050
     Serial.println("[INIT] Đang khởi tạo MPU6050...");
+    Serial.flush();
     if (imu.begin(I2C_ADDR_MPU6050_PRI)) {
-        imu.calibrateGyro(500); // Lấy mẫu tĩnh hiệu chuẩn Gyro Bias
+        imu.calibrateGyro(300); // Lấy mẫu tĩnh hiệu chuẩn Gyro Bias
     } else {
         Serial.println("[WARN] MPU6050 chưa sẵn sàng! Firmware sẽ tự động thử kết nối lại khi phát hiện cảm biến.");
     }
+    Serial.flush();
 
     // 3. Khởi tạo Magnetometer (HMC5883L / QMC5883L tự thích ứng)
     Serial.println("[INIT] Đang khởi tạo Magnetometer...");
+    Serial.flush();
     mag.begin();
+    Serial.flush();
 
     // 4. Khởi tạo Barometer BMP280
     Serial.println("[INIT] Đang khởi tạo BMP280...");
+    Serial.flush();
     baro.begin(I2C_ADDR_BMP280_PRI);
+    Serial.flush();
 
     // 5. Khởi tạo GPS ATGM336H qua UART1 (RX=GPIO17, TX=GPIO18)
     Serial.println("[INIT] Đang khởi tạo GPS ATGM336H...");
+    Serial.flush();
     gps.begin(PIN_GPS_RX, PIN_GPS_TX, GPS_BAUDRATE);
+    Serial.flush();
 
-    // 6. Khởi tạo Driver PWM PCA9685 cho 4 ESC
-    Serial.println("[INIT] Đang khởi tạo PCA9685 PWM Driver...");
-    motors.begin(I2C_ADDR_PCA9685_PRI);
+    // 6. Khởi tạo Driver PWM Motor (Hỗ trợ Native GPIO LEDC và PCA9685)
+    Serial.println("[INIT] Đang khởi tạo Motor Controller...");
+    Serial.flush();
+    motors.begin(USE_PCA9685_FOR_MOTORS, I2C_ADDR_PCA9685_PRI);
+    Serial.flush();
 
     // 7. Khởi tạo Nguồn nhận tín hiệu điều khiển (Serial / GCS & Wi-Fi Phone Cockpit)
     rcInput.begin();
+    Serial.flush();
+
+#if ENABLE_WIFI_COCKPIT
     wifiInput.begin();
 
     // Khởi tạo FreeRTOS Task chạy tác vụ Mạng / Wi-Fi trên Core 0
@@ -290,6 +375,9 @@ void setup() {
         NULL,               // Handle task
         0                   // Chạy ghim cố định trên Core 0 (để Core 1 chuyên trách bay 250Hz)
     );
+#else
+    Serial.println("[INFO] Wi-Fi Cockpit đang TẮT theo cấu hình (tiết kiệm nguồn & tối ưu test Serial/Web Tuner).");
+#endif
 
     // 8. Khởi tạo Bộ ước lượng tư thế không gian (Mahony AHRS Filter)
     attitude.begin(2.5f, 0.005f);
@@ -377,10 +465,10 @@ void loop() {
         // 1.5. Giám sát an toàn Failsafe
         FailsafeState fsState = failsafe.check(*activeInput, attitude.getAttitude(), imu.isHealthy());
 
-        // 1.6. Tính toán vòng lặp PID kép và Trộn tín hiệu động cơ Quad-X
-        if (fsState == FS_OK || fsState == FS_WARNING) {
+        // 1.6. Tính toán vòng lặp PID kép và Trộn tín hiệu động cơ Quad-X (chỉ khi đang ARM)
+        if ((fsState == FS_OK || fsState == FS_WARNING) && motors.isArmed()) {
             mixer.update(ctrl, attitude.getAttitude(), dtSeconds);
-        } else if (fsState == FS_LANDING) {
+        } else if (fsState == FS_LANDING && motors.isArmed()) {
             // Khi mất sóng: Tự cân bằng nằm ngang (Roll=0, Pitch=0, Yaw=0) và hạ ga từ từ
             ControlData landingCtrl = ctrl;
             landingCtrl.flightMode = MODE_ANGLE;
@@ -389,8 +477,8 @@ void loop() {
             landingCtrl.yaw = 0.0f;
             landingCtrl.throttle = 15.0f; // Giữ ga hạ cánh an toàn
             mixer.update(landingCtrl, attitude.getAttitude(), dtSeconds);
-        } else if (fsState == FS_EMERGENCY) {
-            // Dừng khẩn cấp: Đảm bảo mixer không phát xung và ngắt PID
+        } else if (fsState == FS_EMERGENCY || !motors.isArmed()) {
+            // Dừng khẩn cấp hoặc Chưa ARM: Reset PID (Không ghi đè lệnh testMotor)
             mixer.resetPids();
         }
 
@@ -399,12 +487,15 @@ void loop() {
         const MotorOutputs& currentOut = mixer.getOutputs();
         const BaroData& currentBaro = baro.getData();
 
+        uint32_t rawMv = analogReadMilliVolts(PIN_VBAT_SENSE);
+        float realVbat = ((float)rawMv * VBAT_CALIBRATION_SCALE) / 1000.0f;
+
         TelemetryPayload telem;
         telem.roll = currentAtt.roll;
         telem.pitch = currentAtt.pitch;
         telem.yaw = currentAtt.yaw;
         telem.altitude = currentBaro.relativeAltitude;
-        telem.batteryVoltage = 12.0f; // Mặc định hiển thị hoặc đọc từ ADC pin
+        telem.batteryVoltage = realVbat; // Đọc trực tiếp từ cảm biến ADC chân GPIO 1 thực tế
         telem.m1 = currentOut.m1;
         telem.m2 = currentOut.m2;
         telem.m3 = currentOut.m3;

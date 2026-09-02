@@ -11,18 +11,26 @@
 // Dùng chung cho: MPU6050, HMC5883L / QMC5883L, BMP280, PCA9685
 #define PIN_I2C_SDA         8
 #define PIN_I2C_SCL         9
-#define I2C_FREQUENCY       400000  // 400kHz (I2C Fast Mode)
+#define I2C_FREQUENCY       100000  // 100kHz (Chuẩn I2C Standard Mode chống nhiễu dây nối test bàn)
+
+// --- CHỌN PHƯƠNG THỨC ĐIỀU KHIỂN ĐỘNG CƠ (MOTOR DRIVER MODE) ---
+// true: Dùng qua I2C PCA9685 16-kênh
+// false: Dùng phát xung phần cứng trực tiếp từ ESP32-S3 (GPIO 4, 5, 6, 7) - KHÔNG CẦN PCA9685
+#define USE_PCA9685_FOR_MOTORS  false   // Mặc định false để điều khiển trực tiếp trên 4 chân GPIO 4,5,6,7 nếu chưa cắm PCA9685
 
 // --- CHÂN ĐIỀU KHIỂN ESC ĐỘNG CƠ TRỰC TIẾP (HARDWARE MCPWM / LEDC 50-400Hz) ---
-// 4 kênh ngõ ra PWM trực tiếp từ ESP32-S3 (hoặc dùng qua PCA9685 I2C)
+// 4 kênh ngõ ra PWM trực tiếp từ ESP32-S3 (khi USE_PCA9685_FOR_MOTORS = false)
 #define PIN_MOTOR_1         4       // ESC 1: Động cơ M1 (Trước Phải - CCW)
 #define PIN_MOTOR_2         5       // ESC 2: Động cơ M2 (Trước Trái - CW)
 #define PIN_MOTOR_3         6       // ESC 3: Động cơ M3 (Sau Phải - CW)
 #define PIN_MOTOR_4         7       // ESC 4: Động cơ M4 (Sau Trái - CCW)
 
 // --- GIÁM SÁT ĐIỆN ÁP PIN & DÒNG ĐIỆN (ADC) ---
-#define PIN_VBAT_SENSE      1       // ADC1_CH0: Cầu phân áp trở 10kΩ/2.2kΩ giám sát pin LiPo 3S (11.1V-12.6V)
-#define PIN_CURRENT_SENSE   2       // ADC1_CH1: Cảm biến dòng điện PDB / Shunt Sensor
+#define PIN_VBAT_SENSE          1       // ADC1_CH0 (GPIO 1): Giám sát pin LiPo 3S (11.1V-12.6V)
+#define PIN_CURRENT_SENSE       2       // ADC1_CH1 (GPIO 2): Cảm biến dòng điện PDB / Shunt Sensor
+#define VBAT_DIVIDER_R1_KOHM    10.0f   // Điện trở phân áp trên R1 = 10kΩ
+#define VBAT_DIVIDER_R2_KOHM    2.2f    // Điện trở phân áp dưới R2 = 2.2kΩ
+#define VBAT_CALIBRATION_SCALE  ((VBAT_DIVIDER_R1_KOHM + VBAT_DIVIDER_R2_KOHM) / VBAT_DIVIDER_R2_KOHM) // Hệ số nhân tỷ lệ (5.545f)
 
 // --- CÒI BÁO ĐỘNG & ĐÈN BÁO TRẠNG THÁI (BUZZER & STATUS LEDS) ---
 #define PIN_BUZZER          10      // Còi chíp Active Buzzer 5V (Báo Arm/Disarm/Pin yếu/Tìm drone)
@@ -93,6 +101,7 @@
 // =============================================================================
 // CẤU HÌNH WI-FI SOFT-AP & ĐIỀU KHIỂN BẰNG ĐIỆN THOẠI (SMARTPHONE WEB COCKPIT)
 // =============================================================================
+#define ENABLE_WIFI_COCKPIT     false               // Đặt false để tắt Wi-Fi khi test bàn / giảm tải nguồn USB
 #define WIFI_AP_SSID            "ESP32-DRONE-FC"
 #define WIFI_AP_PASS            "12345678"          // Tối thiểu 8 ký tự WPA2
 #define WIFI_AP_CHANNEL         6                   // Kênh truyền sóng Wi-Fi (1, 6, 11)

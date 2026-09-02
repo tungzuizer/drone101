@@ -58,6 +58,9 @@ bool WifiControlInput::begin() {
         return false;
     }
 
+    // Giảm công suất phát RF về 8.5dBm sau khi Soft-AP đã bật để tránh sụt áp cổng USB
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
+
     Serial.printf("[WIFI OK] SSID: %s | Mật khẩu: %s\n", WIFI_AP_SSID, WIFI_AP_PASS);
     Serial.printf("[WIFI OK] IP Drone: http://%s (Cổng Web: %d, WS: %d)\n",
                   WiFi.softAPIP().toString().c_str(), httpPort_, wsPort_);
