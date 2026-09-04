@@ -9,9 +9,11 @@
 
 // --- I2C BUS (CẢM BIẾN & DRIVER MỞ RỘNG) ---
 // Dùng chung cho: MPU6050, HMC5883L / QMC5883L, BMP280, PCA9685
-#define PIN_I2C_SDA         8
-#define PIN_I2C_SCL         9
-#define I2C_FREQUENCY       100000  // 100kHz (Chuẩn I2C Standard Mode chống nhiễu dây nối test bàn)
+// Chú ý: Trên ESP32-S3 R16N8 (Octal Flash/PSRAM), GPIO 11-14 và 33-37 nối nội bộ với Flash/PSRAM nên cấm dùng làm I2C!
+// Sử dụng cặp chân GPIO 8 (SDA) và GPIO 9 (SCL) chuẩn phần cứng.
+#define PIN_I2C_SDA         8       // SDA = GPIO 8
+#define PIN_I2C_SCL         9       // SCL = GPIO 9
+#define I2C_FREQUENCY       400000  // 400kHz (I2C Fast Mode)
 
 // --- CHỌN PHƯƠNG THỨC ĐIỀU KHIỂN ĐỘNG CƠ (MOTOR DRIVER MODE) ---
 // true: Dùng qua I2C PCA9685 16-kênh
@@ -74,19 +76,22 @@
 // CẤU HÌNH MPU6050 (IMU) & HƯỚNG LẮP ĐẶT (SENSOR ORIENTATION)
 // =============================================================================
 // Các góc xoay lắp đặt MPU6050 trên khung Drone:
-// IMU_ALIGN_DEFAULT : Mũi tên X hướng Trước (Nose), Y hướng Trái
-// IMU_ALIGN_CW90    : Xoay 90° thuận KĐH (Mũi tên X hướng Phải, Y hướng Sau)
-// IMU_ALIGN_CW180   : Xoay 180° (Mũi tên X hướng Sau, Y hướng Phải)
-// IMU_ALIGN_CCW90   : Xoay 90° ngược KĐH (Mũi tên X hướng Trái, Y hướng Trước)
+// IMU_ALIGN_DEFAULT    : Nằm phẳng, Mũi tên X hướng Trước (Nose), Y hướng Trái
+// IMU_ALIGN_CW90       : Nằm phẳng, Xoay 90° thuận KĐH (Mũi tên X hướng Phải, Y hướng Sau)
+// IMU_ALIGN_CW180      : Nằm phẳng, Xoay 180° (Mũi tên X hướng Sau, Y hướng Phải)
+// IMU_ALIGN_CCW90      : Nằm phẳng, Xoay 90° ngược KĐH (Mũi tên X hướng Trái, Y hướng Trước)
+// IMU_ALIGN_CW90_VERT  : Dựng đứng + Xoay CW90 (Trục X sensor hướng lên, chip gắn vuông góc dựng đứng)
 enum ImuOrientation {
-    IMU_ALIGN_DEFAULT = 0,
-    IMU_ALIGN_CW90    = 1,
-    IMU_ALIGN_CW180   = 2,
-    IMU_ALIGN_CCW90   = 3
+    IMU_ALIGN_DEFAULT    = 0,
+    IMU_ALIGN_CW90       = 1,
+    IMU_ALIGN_CW180      = 2,
+    IMU_ALIGN_CCW90      = 3,
+    IMU_ALIGN_CW90_VERT  = 4
 };
 
-// Cấu hình hướng xoay MPU6050 thực tế trên drone (Mặc định CW90 cho lắp vuông góc sang phải)
-#define IMU_SENSOR_ORIENTATION  IMU_ALIGN_CW90
+// Cấu hình hướng xoay MPU6050 thực tế trên drone
+// Chip gắn dựng đứng + xoay CW90: Trục X sensor hướng lên trời
+#define IMU_SENSOR_ORIENTATION  IMU_ALIGN_CW90_VERT
 
 // Gyro Scale: 0=±250dps (131.0 LSB/dps), 1=±500dps (65.5 LSB/dps), 2=±1000dps (32.8 LSB/dps), 3=±2000dps (16.4 LSB/dps)
 #define MPU6050_GYRO_FS_SEL     1       // ±500 deg/s (chuẩn cho Drone bay cân bằng)
@@ -116,7 +121,7 @@ enum ImuOrientation {
 // =============================================================================
 // CẤU HÌNH WI-FI SOFT-AP & ĐIỀU KHIỂN BẰNG ĐIỆN THOẠI (SMARTPHONE WEB COCKPIT)
 // =============================================================================
-#define ENABLE_WIFI_COCKPIT     false               // Đặt false để tắt Wi-Fi khi test bàn / giảm tải nguồn USB
+#define ENABLE_WIFI_COCKPIT     true                // Bật Wi-Fi SoftAP cho Web Tuner & Phone Cockpit
 #define WIFI_AP_SSID            "ESP32-DRONE-FC"
 #define WIFI_AP_PASS            "12345678"          // Tối thiểu 8 ký tự WPA2
 #define WIFI_AP_CHANNEL         6                   // Kênh truyền sóng Wi-Fi (1, 6, 11)

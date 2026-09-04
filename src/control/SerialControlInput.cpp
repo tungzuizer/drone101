@@ -54,12 +54,14 @@ void SerialControlInput::processLine(const char* line) {
     if (*line == '\0' || *line == '#') return; // Dòng trống hoặc chú thích
 
     if (strncasecmp(line, "ARM", 3) == 0 && (line[3] == '\0' || isspace(line[3]))) {
-        data_.armSwitch = true;
+        strncpy(pendingCmd_.command, "ARM_REQUEST", sizeof(pendingCmd_.command) - 1);
+        pendingCmd_.isPending = true;
         data_.isConnected = true;
         data_.lastPacketTimeMs = millis();
         Serial.println("[GCS CMD] Nhận lệnh: ARM");
     } else if (strncasecmp(line, "DISARM", 6) == 0) {
-        data_.armSwitch = false;
+        strncpy(pendingCmd_.command, "DISARM_REQUEST", sizeof(pendingCmd_.command) - 1);
+        pendingCmd_.isPending = true;
         data_.throttle = 0.0f;
         data_.lastPacketTimeMs = millis();
         Serial.println("[GCS CMD] Nhận lệnh: DISARM");
@@ -69,6 +71,21 @@ void SerialControlInput::processLine(const char* line) {
         parseModeCommand(line + 9);
     } else if (strncasecmp(line, "SET PID ", 8) == 0) {
         parsePidCommand(line + 8);
+    } else if (strncasecmp(line, "SET FILTER ", 11) == 0) {
+        parseFilterCommand(line + 11);
+    } else if (strncasecmp(line, "SET RATES ", 10) == 0) {
+        parseRatesCommand(line + 10);
+    } else if (strncasecmp(line, "SET AIRMODE ", 12) == 0) {
+        parseAirmodeCommand(line + 12);
+    } else if (strncasecmp(line, "SET TPA ", 8) == 0) {
+        parseTpaCommand(line + 8);
+    } else if (strncasecmp(line, "SET ESTIMATOR ", 14) == 0) {
+        parseEstimatorCommand(line + 14);
+    } else if (strncasecmp(line, "SET FAILSAFE ", 13) == 0) {
+        parseFailsafeCommand(line + 13);
+    } else if (strncasecmp(line, "GET VERSION", 11) == 0 || strncasecmp(line, "VERSION", 7) == 0) {
+        strncpy(pendingCmd_.command, "GET_VERSION", sizeof(pendingCmd_.command) - 1);
+        pendingCmd_.isPending = true;
     } else if (strncasecmp(line, "TEST ", 5) == 0) {
         parseMotorTestCommand(line + 5);
     } else if (strncasecmp(line, "CALIB ", 6) == 0) {
@@ -82,7 +99,7 @@ void SerialControlInput::processLine(const char* line) {
     } else if (strncasecmp(line, "PING", 4) == 0 || strncasecmp(line, "HEARTBEAT", 9) == 0) {
         data_.isConnected = true;
         data_.lastPacketTimeMs = millis();
-        Serial.println("PONG");
+        // Không in PONG để tránh spam Serial khi Tuner gửi PING 200ms liên tục
     }
 }
 
@@ -168,8 +185,95 @@ void SerialControlInput::parseCalibCommand(const char* args) {
     }
 }
 
+void SerialControlInput::parseFilterCommand(const char* args) {
+    // Định dạng: SET FILTER <DTERM|GYRO_LPF|NOTCH> <VAL>
+    char filterType[16] = {0};
+    float val = 0.0f;
+    if (sscanf(args, "%15s %f", filterType, &val) >= 2) {
+        strncpy(pendingCmd_.command, "SET_FILTER", sizeof(pendingCmd_.command) - 1);
+        strncpy(pendingCmd_.arg1, filterType, sizeof(pendingCmd_.arg1) - 1);
+        snprintf(pendingCmd_.arg2, sizeof(pendingCmd_.arg2), "%f", val);
+        pendingCmd_.isPending = true;
+        Serial.printf("[GCS CMD] Cấu hình Filter %s = %.2f\n", filterType, val);
+    }
+}
+
+void SerialControlInput::parseRatesCommand(const char* args) {
+    // Định dạng: SET RATES <RC_RATE> <SUPER_RATE> <EXPO>
+    float rc = 1.0f, sr = 0.7f, ex = 0.0f;
+    if (sscanf(args, "%f %f %f", &rc, &sr, &ex) >= 3) {
+        strncpy(pendingCmd_.command, "SET_RATES", sizeof(pendingCmd_.command) - 1);
+        snprintf(pendingCmd_.arg1, sizeof(pendingCmd_.arg1), "%f", rc);
+        snprintf(pendingCmd_.arg2, sizeof(pendingCmd_.arg2), "%f", sr);
+        snprintf(pendingCmd_.arg3, sizeof(pendingCmd_.arg3), "%f", ex);
+        pendingCmd_.isPending = true;
+        Serial.printf("[GCS CMD] Cấu hình Rates: RC=%.2f, Super=%.2f, Expo=%.2f\n", rc, sr, ex);
+    }
+}
+
+void SerialControlInput::parseFailsafeCommand(const char* args) {
+    // Định dạng: SET FAILSAFE <TIMEOUT|MAX_TILT|ACTION> <VAL>
+    char param[16] = {0};
+    char val[32] = {0};
+    if (sscanf(args, "%15s %31s", param, val) >= 2) {
+        strncpy(pendingCmd_.command, "SET_FAILSAFE", sizeof(pendingCmd_.command) - 1);
+        strncpy(pendingCmd_.arg1, param, sizeof(pendingCmd_.arg1) - 1);
+        strncpy(pendingCmd_.arg2, val, sizeof(pendingCmd_.arg2) - 1);
+        pendingCmd_.isPending = true;
+        Serial.printf("[GCS CMD] Cấu hình Failsafe %s = %s\n", param, val);
+    }
+}
+
+void SerialControlInput::parseAirmodeCommand(const char* args) {
+    // Định dạng: SET AIRMODE <ON|OFF|1|0>
+    while (*args && isspace(*args)) args++;
+    strncpy(pendingCmd_.command, "SET_AIRMODE", sizeof(pendingCmd_.command) - 1);
+    if (strncasecmp(args, "ON", 2) == 0 || strcmp(args, "1") == 0) {
+        strncpy(pendingCmd_.arg1, "1", sizeof(pendingCmd_.arg1) - 1);
+        Serial.println("[GCS CMD] Kích hoạt AirMode: ON");
+    } else {
+        strncpy(pendingCmd_.arg1, "0", sizeof(pendingCmd_.arg1) - 1);
+        Serial.println("[GCS CMD] Kích hoạt AirMode: OFF");
+    }
+    pendingCmd_.isPending = true;
+}
+
+void SerialControlInput::parseTpaCommand(const char* args) {
+    // Định dạng: SET TPA <RATE> <BREAKPOINT>
+    float rate = 0.0f, bp = 0.50f;
+    if (sscanf(args, "%f %f", &rate, &bp) >= 1) {
+        strncpy(pendingCmd_.command, "SET_TPA", sizeof(pendingCmd_.command) - 1);
+        snprintf(pendingCmd_.arg1, sizeof(pendingCmd_.arg1), "%f", rate);
+        snprintf(pendingCmd_.arg2, sizeof(pendingCmd_.arg2), "%f", bp);
+        pendingCmd_.isPending = true;
+        Serial.printf("[GCS CMD] Cấu hình TPA: Rate=%.2f, Breakpoint=%.2f\n", rate, bp);
+    }
+}
+
+void SerialControlInput::parseEstimatorCommand(const char* args) {
+    // Định dạng: SET ESTIMATOR <MAHONY|MADGWICK> [PARAM]
+    char algo[16] = {0};
+    float param = 0.0f;
+    int parsed = sscanf(args, "%15s %f", algo, &param);
+    if (parsed >= 1) {
+        strncpy(pendingCmd_.command, "SET_ESTIMATOR", sizeof(pendingCmd_.command) - 1);
+        strncpy(pendingCmd_.arg1, algo, sizeof(pendingCmd_.arg1) - 1);
+        if (parsed >= 2) {
+            snprintf(pendingCmd_.arg2, sizeof(pendingCmd_.arg2), "%f", param);
+        } else {
+            pendingCmd_.arg2[0] = '\0';
+        }
+        pendingCmd_.isPending = true;
+        Serial.printf("[GCS CMD] Cấu hình Attitude Estimator: %s (param=%.3f)\n", algo, param);
+    }
+}
+
 GcsCommand SerialControlInput::getPendingCommand() {
     GcsCommand cmd = pendingCmd_;
     pendingCmd_.isPending = false;
     return cmd;
+}
+
+void SerialControlInput::processExternalLine(const char* line) {
+    processLine(line);
 }

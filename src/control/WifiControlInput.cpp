@@ -11,6 +11,7 @@ WifiControlInput::WifiControlInput(uint16_t httpPort, uint16_t wsPort)
       controlReadIdx_(0),
       telemReadIdx_(0),
       clientConnected_(false),
+      phoneControlActive_(false),
       connectedClientsCount_(0),
       lastTelemBroadcastMs_(0) {
     resetToSafeState();
@@ -38,6 +39,7 @@ void WifiControlInput::resetToSafeState() {
 
         memset(&telemBufferPool_[i], 0, sizeof(TelemetryPayload));
     }
+    phoneControlActive_.store(false, std::memory_order_relaxed);
 }
 
 bool WifiControlInput::begin() {
@@ -109,17 +111,21 @@ void WifiControlInput::handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t*
             clientConnected_.store(true);
             connectedClientsCount_.fetch_add(1);
             IPAddress ip = wsServer_.remoteIP(num);
-            Serial.printf("[WS CONNECT] Điện thoại đã kết nối: [#%u] từ IP: %s\n", num, ip.toString().c_str());
+            Serial.printf("[WS CONNECT] Client kết nối: [#%u] từ IP: %s (chờ xác định Phone/GCS)\n", num, ip.toString().c_str());
             break;
         }
 
         case WStype_DISCONNECTED: {
-            uint8_t cur = connectedClientsCount_.load();
-            uint8_t nextCount = (cur > 0) ? connectedClientsCount_.fetch_sub(1) - 1 : 0;
-            Serial.printf("[WS DISCONNECT] Điện thoại ngắt kết nối: [#%u]. Số kết nối còn lại: %u\n", num, nextCount);
+            uint8_t prev = connectedClientsCount_.load();
+            while (prev > 0 && !connectedClientsCount_.compare_exchange_weak(prev, prev - 1)) {
+                // CAS loop đảm bảo an toàn thread-safe không bị underflow
+            }
+            uint8_t nextCount = connectedClientsCount_.load();
+            Serial.printf("[WS DISCONNECT] Client ngắt kết nối: [#%u]. Số kết nối còn lại: %u\n", num, nextCount);
 
             if (nextCount == 0) {
                 clientConnected_.store(false);
+                phoneControlActive_.store(false);
                 resetToSafeState();
             }
             break;
@@ -145,14 +151,13 @@ void WifiControlInput::handleWebSocketEvent(uint8_t num, WStype_t type, uint8_t*
 }
 
 void WifiControlInput::parseControlPacket(const char* packet, size_t length) {
-    if (length < 3 || length > 64) return;
+    if (length < 3 || length > 128) return;
 
-    // Đảm bảo chuỗi kết thúc bằng null an toàn trên bộ nhớ stack
-    char buf[65];
+    char buf[129];
     memcpy(buf, packet, length);
     buf[length] = '\0';
 
-    // Gói tin điều khiển: $C,throttle,roll,pitch,yaw,arm,mode,kill
+    // Gói tin điều khiển từ Phone Cockpit: $C,throttle,roll,pitch,yaw,arm,mode,kill
     if (buf[0] == '$' && buf[1] == 'C' && buf[2] == ',') {
         float thr = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
         int arm = 0, mode = 0, kill = 0;
@@ -200,6 +205,13 @@ void WifiControlInput::parseControlPacket(const char* packet, size_t length) {
             // Cập nhật chỉ số đọc cho Core 1
             controlReadIdx_.store(writeIdx, std::memory_order_release);
             clientConnected_.store(true, std::memory_order_relaxed);
+            phoneControlActive_.store(true, std::memory_order_relaxed);  // Đánh dấu đây là Phone Cockpit thật sự
+        }
+    } else if (gcsTarget_ != nullptr) {
+        gcsTarget_->processExternalLine(buf);
+        // Không log PING/HEARTBEAT để tránh spam Serial
+        if (strncasecmp(buf, "PING", 4) != 0 && strncasecmp(buf, "HEARTBEAT", 9) != 0) {
+            Serial.printf("[WS GCS] Lệnh WiFi: %s\n", buf);
         }
     }
 }
@@ -235,22 +247,25 @@ void WifiControlInput::processNetwork() {
 }
 
 void WifiControlInput::broadcastTelemetry() {
-    // Sao chép an toàn một bản snapshot cục bộ lên stack tránh race condition khi snprintf
     uint8_t readIdx = telemReadIdx_.load(std::memory_order_acquire);
     TelemetryPayload t = telemBufferPool_[readIdx];
 
-    // Định dạng gói tin Telemetry gửi về điện thoại:
-    // $T,roll,pitch,yaw,alt,vbat,m1,m2,m3,m4,armed,fsState,loopUs
-    char msg[128];
+    // Gửi gói tin Telemetry đầy đủ $TEL (tương thích Web Tuner)
+    char msg[256];
     snprintf(msg, sizeof(msg),
-             "$T,%.1f,%.1f,%.1f,%.2f,%.1f,%u,%u,%u,%u,%d,%d,%lu",
+             "$TEL,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.1f,%u,%u,%u,%u,%.2f,%d,%d,%d,%d,%d,%d,%.2f,%.2f,%.2f",
              t.roll, t.pitch, t.yaw,
-             t.altitude,
-             t.batteryVoltage,
+             t.rateRoll, t.ratePitch, t.rateYaw,
+             t.throttle,
              t.m1, t.m2, t.m3, t.m4,
+             t.altitude,
              t.isArmed ? 1 : 0,
              (int)t.failsafeState,
-             (unsigned long)t.flightLoopTimeUs);
+             t.imuOk ? 1 : 0,
+             t.baroOk ? 1 : 0,
+             t.magOk ? 1 : 0,
+             t.pcaOk ? 1 : 0,
+             t.ax, t.ay, t.az);
 
     wsServer_.broadcastTXT(msg);
 }

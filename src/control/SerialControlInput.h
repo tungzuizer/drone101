@@ -28,6 +28,9 @@ public:
     bool hasPendingCommand() const { return pendingCmd_.isPending; }
     GcsCommand getPendingCommand();
 
+    // Cho phép nguồn bên ngoài (Wi-Fi WebSocket) đẩy lệnh GCS vào hàng đợi
+    void processExternalLine(const char* line);
+
     // Reset lại dữ liệu điều khiển về trạng thái an toàn
     void resetToSafeState();
 
@@ -45,6 +48,12 @@ private:
     void parsePidCommand(const char* args);
     void parseMotorTestCommand(const char* args);
     void parseCalibCommand(const char* args);
+    void parseFilterCommand(const char* args);
+    void parseRatesCommand(const char* args);
+    void parseFailsafeCommand(const char* args);
+    void parseAirmodeCommand(const char* args);
+    void parseTpaCommand(const char* args);
+    void parseEstimatorCommand(const char* args);
 };
 
 #endif // SERIAL_CONTROL_INPUT_H

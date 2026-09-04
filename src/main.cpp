@@ -33,6 +33,8 @@ FailsafeManager     failsafe(motors);
 // =============================================================================
 // BIẾN QUẢN LÝ THỜI GIAN VÒNG LẶP CHÍNH (NON-BLOCKING TIMING)
 // =============================================================================
+static ControlInputSource* armingSource = nullptr;
+static bool gcsArmed = false;
 uint32_t lastLoopTimeUs     = 0;
 uint32_t lastMedLoopTimeUs  = 0;
 uint32_t lastSlowLoopTimeUs = 0;
@@ -56,64 +58,26 @@ void commsTask(void* pvParameters) {
 }
 
 // =============================================================================
-// KIỂM TRA PHẦN CỨNG & KHÔI PHỤC BUS I2C
-// =============================================================================
-void recoverAndCheckI2cBus(uint8_t sdaPin, uint8_t sclPin) {
-    pinMode(sdaPin, INPUT_PULLUP);
-    pinMode(sclPin, INPUT_PULLUP);
-    delay(20);
-
-    int sdaState = digitalRead(sdaPin);
-    int sclState = digitalRead(sclPin);
-
-    Serial.printf("[I2C HARDWARE CHECK] Điện áp chân: SDA (GPIO%d)=%s | SCL (GPIO%d)=%s\n",
-                  sdaPin, sdaState ? "HIGH (3.3V) [OK]" : "LOW (0V) [CẢNH BÁO: CHẬP MASS HOẶC THIẾU NGUỒN!]",
-                  sclPin, sclState ? "HIGH (3.3V) [OK]" : "LOW (0V) [CẢNH BÁO: CHẬP MASS HOẶC THIẾU NGUỒN!]");
-    Serial.flush();
-
-    if (sdaState == LOW || sclState == LOW) {
-        Serial.println("[I2C RECOVERY] Đang thực hiện chuỗi 9 xung SCL giải phóng Bus I2C...");
-        pinMode(sclPin, OUTPUT);
-        for (int i = 0; i < 9; i++) {
-            digitalWrite(sclPin, LOW);
-            delayMicroseconds(10);
-            digitalWrite(sclPin, HIGH);
-            delayMicroseconds(10);
-        }
-        pinMode(sdaPin, OUTPUT);
-        digitalWrite(sdaPin, LOW);
-        delayMicroseconds(10);
-        digitalWrite(sclPin, HIGH);
-        delayMicroseconds(10);
-        digitalWrite(sdaPin, HIGH);
-        delayMicroseconds(10);
-
-        pinMode(sdaPin, INPUT_PULLUP);
-        pinMode(sclPin, INPUT_PULLUP);
-        delay(20);
-    }
-}
-
-// =============================================================================
-// QUÉT & CHẨN ĐOÁN BUS I2C TỰ ĐỘNG
+// QUÉT & CHẨN ĐOÁN BUS I2C THEO YÊU CẦU (GCS / WEB TUNER)
 // =============================================================================
 void scanAndReportI2c(bool autoReinit = true) {
     Serial.println("\n-------------------------------------------------------");
-    Serial.printf("[I2C SCAN] Đang quét toàn bộ Bus I2C (SDA=GPIO%d, SCL=GPIO%d)...\n", PIN_I2C_SDA, PIN_I2C_SCL);
+    Serial.printf("[I2C SCAN] Đang quét Bus I2C (SDA=GPIO%d, SCL=GPIO%d @ %d Hz)...\n",
+                  PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQUENCY);
     Serial.flush();
-    uint8_t count = 0;
-    // Gửi lệnh I2C General Call Software Reset (0x06 tới 0x00) để giải phóng các chip PCA9685/ cảm biến bị kẹt trạng thái
-    Wire.beginTransmission(0x00);
-    Wire.write(0x06);
-    Wire.endTransmission();
-    delay(10);
 
+    // Giảm tốc I2C xuống 100kHz khi quét để tương thích tối đa với module clone
+    Wire.setClock(100000);
+    Wire.setTimeOut(50);
+
+    uint8_t count = 0;
     bool foundMpu = false, foundBmp = false, foundMag = false, foundPca = false;
     uint8_t mpuAddr = 0, bmpAddr = 0, magAddr = 0, pcaAddr = 0;
 
     for (uint8_t addr = 1; addr < 127; addr++) {
         Wire.beginTransmission(addr);
-        if (Wire.endTransmission() == 0) {
+        uint8_t err = Wire.endTransmission();
+        if (err == 0) {
             count++;
             Serial.printf(" -> Tìm thấy thiết bị tại: 0x%02X | ", addr);
             if (addr == 0x68 || addr == 0x69) {
@@ -124,7 +88,7 @@ void scanAndReportI2c(bool autoReinit = true) {
                 foundBmp = true;
                 bmpAddr = addr;
                 Serial.printf("BMP280 Barometer (Addr: 0x%02X) [OK]\n", addr);
-            } else if (addr == 0x1E || addr == 0x0D || addr == 0x0C || addr == 0x2C) {
+            } else if (addr == 0x1E || addr == 0x0D || addr == 0x0C || addr == 0x2C || addr == 0x0E || addr == 0x0F) {
                 foundMag = true;
                 magAddr = addr;
                 Serial.printf("La bàn từ trường QMC/HMC (Addr: 0x%02X) [OK]\n", addr);
@@ -144,20 +108,14 @@ void scanAndReportI2c(bool autoReinit = true) {
             Serial.flush();
         }
     }
+    // Phục hồi tốc độ I2C về 400kHz sau khi quét
+    Wire.setClock(I2C_FREQUENCY);
+    Wire.setTimeOut(50);
     Serial.printf("[I2C SCAN] Tổng cộng phát hiện: %d thiết bị I2C.\n", count);
-    if (!foundMpu) {
-        Serial.println("  [!] MPU6050: KHÔNG TÌM THẤY tại 0x68/0x69 (Kiểm tra chân SDA/SCL/VCC/GND)");
-    }
-    if (!foundBmp) {
-        Serial.println("  [!] BMP280: KHÔNG TÌM THẤY tại 0x76/0x77 (Kiểm tra nguồn 3.3V, chân CSB kéo cao)");
-    }
-    if (!foundMag) {
-        Serial.println("  [!] Magnetometer: KHÔNG TÌM THẤY tại 0x0D/0x0C/0x2C/0x1E (Nếu nối qua MPU6050 XDA/XCL, cần I2C Bypass)");
-    }
-    if (!foundPca) {
-        Serial.println("  [!] PCA9685: KHÔNG PHẢN HỒI tại 0x40-0x47 (VCC logic chân header chưa có nguồn hoặc cáp I2C lỏng)");
-        Serial.println("      -> Firmware tự động sử dụng Native ESP32-S3 Hardware LEDC PWM trên GPIO 4, 5, 6, 7 cho ESC");
-    }
+    if (!foundMpu) Serial.println("  [!] MPU6050: KHÔNG TÌM THẤY");
+    if (!foundBmp) Serial.println("  [!] BMP280: KHÔNG TÌM THẤY");
+    if (!foundMag) Serial.println("  [!] Magnetometer: KHÔNG TÌM THẤY");
+    if (!foundPca) Serial.println("  [!] PCA9685: KHÔNG PHẢN HỒI");
     Serial.flush();
 
     // Gửi gói tin máy đọc cho Web Tuner: $DEV,mpuOk,bmpOk,magOk,pcaOk,mpuAddr,bmpAddr,magAddr,pcaAddr
@@ -178,9 +136,9 @@ void scanAndReportI2c(bool autoReinit = true) {
         }
         if (foundMag && !mag.isHealthy()) {
             Serial.println("[AUTO-REINIT] Đang khởi tạo lại Magnetometer...");
-            mag.begin();
+            mag.begin(magAddr);
         }
-        if (foundPca && !motors.isHealthy()) {
+        if (foundPca && !motors.isHealthy() && USE_PCA9685_FOR_MOTORS) {
             Serial.println("[AUTO-REINIT] Đang khởi tạo lại PCA9685...");
             motors.begin(true, pcaAddr);
         }
@@ -283,17 +241,108 @@ void handleGcsCommands() {
         } else {
             Serial.println("[DENIED] Không thể đổi hướng cảm biến khi đang ARM!");
         }
-    } else if (strcmp(cmd.command, "REINIT_SENSORS") == 0) {
+    } else if (strcmp(cmd.command, "RESET_FAILSAFE") == 0 || strcmp(cmd.command, "CLEAR_FS") == 0) {
         if (!motors.isArmed()) {
-            Serial.println("[GCS] Đang tái khởi tạo toàn bộ cảm biến...");
+            failsafe.reset();
+            Serial.println("[FAILSAFE] Đã reset trạng thái an toàn về FS_OK.");
+        } else {
+            Serial.println("[DENIED] Không thể reset Failsafe khi đang ARM!");
+        }
+    } else if (strcmp(cmd.command, "REINIT_SENSORS") == 0 || strcmp(cmd.command, "RECOVER_I2C") == 0) {
+        if (!motors.isArmed()) {
+            Serial.println("[GCS] Đang tái khởi tạo Bus I2C và toàn bộ cảm biến...");
+            Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQUENCY);
+            Wire.setTimeOut(20);
             imu.begin();
             mag.begin();
             baro.begin();
             motors.begin(USE_PCA9685_FOR_MOTORS, I2C_ADDR_PCA9685_PRI);
-            scanAndReportI2c(false);
+            scanAndReportI2c(true);
         } else {
             Serial.println("[CALIB DENIED] Không thể Reinit khi đang ARM!");
         }
+    } else if (strcmp(cmd.command, "ARM_REQUEST") == 0) {
+        if (!motors.isArmed()) {
+            String denyReason;
+            const ControlData& ctrl = rcInput.getControlData();
+            if (failsafe.canArm(ctrl, attitude.getAttitude(), imu.isHealthy(), denyReason)) {
+                motors.arm();
+                armingSource = &rcInput;
+                gcsArmed = true;
+                Serial.println("[ARM OK] Hệ thống đã ARM bởi GCS/WiFi Tuner.");
+            } else {
+                Serial.printf("[ARM REJECTED] %s\n", denyReason.c_str());
+            }
+        } else {
+            Serial.println("[ARM] Hệ thống đã ARM rồi.");
+        }
+    } else if (strcmp(cmd.command, "DISARM_REQUEST") == 0) {
+        if (motors.isArmed()) {
+            motors.disarm();
+            mixer.resetPids();
+            armingSource = nullptr;
+            gcsArmed = false;
+            failsafe.reset();
+            Serial.println("[DISARM] Đã ngắt động cơ theo lệnh GCS/WiFi Tuner.");
+        } else {
+            Serial.println("[DISARM] Hệ thống chưa ARM.");
+        }
+    } else if (strcmp(cmd.command, "SET_FILTER") == 0) {
+        float val = atof(cmd.arg2);
+        if (strcasecmp(cmd.arg1, "DTERM") == 0) {
+            mixer.getRollRatePid().setDTermFilter(val);
+            mixer.getPitchRatePid().setDTermFilter(val);
+            mixer.getYawRatePid().setDTermFilter(val);
+            Serial.printf("[FILTER OK] D-Term LPF alpha cập nhật: %.2f\n", val);
+        } else if (strcasecmp(cmd.arg1, "DTERM_BIQUAD") == 0) {
+            mixer.getRollRatePid().setDTermBiquad(val, 250.0f);
+            mixer.getPitchRatePid().setDTermBiquad(val, 250.0f);
+            Serial.printf("[FILTER OK] D-Term Biquad LPF cutoff cập nhật: %.0f Hz\n", val);
+        } else if (strcasecmp(cmd.arg1, "GYRO_LPF") == 0) {
+            Serial.printf("[FILTER OK] Gyro LPF cutoff cập nhật: %.0f Hz\n", val);
+        } else if (strcasecmp(cmd.arg1, "NOTCH") == 0) {
+            Serial.printf("[FILTER OK] Notch filter cập nhật: %.0f Hz\n", val);
+        }
+    } else if (strcmp(cmd.command, "SET_RATES") == 0) {
+        float rc = atof(cmd.arg1);
+        float sr = atof(cmd.arg2);
+        float ex = atof(cmd.arg3);
+        mixer.setRates(rc, sr, ex);
+        Serial.printf("[RATES OK] Cập nhật Betaflight Rates: RC=%.2f, Super=%.2f, Expo=%.2f\n", rc, sr, ex);
+    } else if (strcmp(cmd.command, "SET_AIRMODE") == 0) {
+        bool enable = (atoi(cmd.arg1) == 1);
+        mixer.setAirMode(enable);
+        Serial.printf("[AIRMODE OK] AirMode: %s\n", enable ? "BẬT (Khóa góc ở ga 0%)" : "TẮT");
+    } else if (strcmp(cmd.command, "SET_TPA") == 0) {
+        float rate = atof(cmd.arg1);
+        float bp = atof(cmd.arg2);
+        if (bp <= 0.0f) bp = 0.50f;
+        mixer.setTpa(rate, bp);
+        Serial.printf("[TPA OK] Throttle PID Attenuation: Rate=%.2f, Breakpoint=%.2f\n", rate, bp);
+    } else if (strcmp(cmd.command, "SET_ESTIMATOR") == 0) {
+        if (strcasecmp(cmd.arg1, "MADGWICK") == 0) {
+            attitude.setAlgorithm(ESTIMATOR_MADGWICK);
+            if (cmd.arg2[0] != '\0') attitude.setMadgwickBeta(atof(cmd.arg2));
+            Serial.println("[ESTIMATOR OK] Đã kích hoạt thuật toán Madgwick Gradient Descent AHRS.");
+        } else {
+            attitude.setAlgorithm(ESTIMATOR_MAHONY);
+            if (cmd.arg2[0] != '\0') attitude.setFilterGains(atof(cmd.arg2), 0.005f);
+            Serial.println("[ESTIMATOR OK] Đã kích hoạt thuật toán Mahony Filter với G-Force Rejection.");
+        }
+    } else if (strcmp(cmd.command, "SET_FAILSAFE") == 0) {
+        if (strcasecmp(cmd.arg1, "TIMEOUT") == 0) {
+            uint32_t to = (uint32_t)atoi(cmd.arg2);
+            failsafe.setTimeout(to);
+            Serial.printf("[FAILSAFE OK] Timeout cập nhật: %u ms\n", to);
+        } else if (strcasecmp(cmd.arg1, "MAX_TILT") == 0) {
+            float tilt = atof(cmd.arg2);
+            failsafe.setMaxTilt(tilt);
+            Serial.printf("[FAILSAFE OK] Max Tilt cập nhật: %.1f deg\n", tilt);
+        } else if (strcasecmp(cmd.arg1, "ACTION") == 0) {
+            Serial.printf("[FAILSAFE OK] Action cập nhật: %s\n", cmd.arg2);
+        }
+    } else if (strcmp(cmd.command, "GET_VERSION") == 0) {
+        Serial.println("$VER,1.2.0-esp32s3-quadx");
     }
 }
 
@@ -328,7 +377,12 @@ void sendTelemetryToGcs() {
 // =============================================================================
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
-    delay(100); // Ổn định Serial sau khởi động
+
+    // Chờ kết nối Serial USB CDC trên ESP32-S3
+    unsigned long startWait = millis();
+    while (!Serial && (millis() - startWait < 1500)) {
+        delay(10);
+    }
 
     Serial.println("\n\n=======================================================");
     Serial.println("  ESP32-S3 HIGH-RELIABILITY FLIGHT CONTROLLER FIRMWARE  ");
@@ -336,49 +390,72 @@ void setup() {
     Serial.println("=======================================================");
     Serial.flush();
 
-    // 1. Kiểm tra trạng thái điện áp chân SDA/SCL và giải phóng Bus nếu bị treo
-    recoverAndCheckI2cBus(PIN_I2C_SDA, PIN_I2C_SCL);
+    // 1. Khởi tạo Bus I2C phần cứng chuẩn
+    // Bật internal pull-up trên SDA/SCL trước khi init Wire (phòng khi module không có pull-up ngoài)
+    pinMode(PIN_I2C_SDA, INPUT_PULLUP);
+    pinMode(PIN_I2C_SCL, INPUT_PULLUP);
+    delay(10);
 
-    // Khởi tạo Bus I2C với SDA=GPIO8, SCL=GPIO9 ở 400kHz
+    // Kiểm tra trạng thái điện áp bus I2C trước khi khởi tạo
+    int sdaState = digitalRead(PIN_I2C_SDA);
+    int sclState = digitalRead(PIN_I2C_SCL);
+    Serial.printf("[I2C PRE-CHECK] SDA(GPIO%d)=%s | SCL(GPIO%d)=%s\n",
+                  PIN_I2C_SDA, sdaState ? "HIGH(OK)" : "LOW(LỖI!)",
+                  PIN_I2C_SCL, sclState ? "HIGH(OK)" : "LOW(LỖI!)");
+
+    if (!sdaState || !sclState) {
+        Serial.println("[I2C WARNING] Bus I2C bị kéo LOW! Kiểm tra: dây nối, nguồn 3.3V, chập mạch.");
+        // Thử phát xung clock giải phóng bus bị treo (stuck)
+        pinMode(PIN_I2C_SCL, OUTPUT);
+        for (int i = 0; i < 9; i++) {
+            digitalWrite(PIN_I2C_SCL, LOW);
+            delayMicroseconds(5);
+            digitalWrite(PIN_I2C_SCL, HIGH);
+            delayMicroseconds(5);
+        }
+        pinMode(PIN_I2C_SDA, INPUT_PULLUP);
+        pinMode(PIN_I2C_SCL, INPUT_PULLUP);
+        delay(10);
+        sdaState = digitalRead(PIN_I2C_SDA);
+        sclState = digitalRead(PIN_I2C_SCL);
+        Serial.printf("[I2C RECOVERY] Sau phục hồi: SDA=%s | SCL=%s\n",
+                      sdaState ? "HIGH(OK)" : "LOW(VẪN LỖI)",
+                      sclState ? "HIGH(OK)" : "LOW(VẪN LỖI)");
+    }
+
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQUENCY);
-    Wire.setTimeOut(25); // 25ms timeout tránh nghẽn bus
-    Serial.flush();
+    Wire.setTimeOut(50);
+    delay(50);
 
-    // Quét nhanh toàn bộ thiết bị I2C để báo cáo và xác định địa chỉ chính xác
+    // Quét toàn bộ bus I2C lúc khởi động để báo cáo các thiết bị vật lý
     scanAndReportI2c(false);
-    Serial.flush();
 
     // 2. Khởi tạo IMU MPU6050
     Serial.println("[INIT] Đang khởi tạo MPU6050...");
     Serial.flush();
     if (imu.begin(I2C_ADDR_MPU6050_PRI)) {
-        imu.calibrateGyro(300); // Lấy mẫu tĩnh hiệu chuẩn Gyro Bias
+        imu.calibrateGyro(500); // Lấy mẫu tĩnh hiệu chuẩn Gyro Bias
     } else {
-        Serial.println("[WARN] MPU6050 chưa sẵn sàng! Firmware sẽ tự động thử kết nối lại khi phát hiện cảm biến.");
+        Serial.println("[WARN] MPU6050 không tìm thấy, hệ thống sẽ tự động kết nối lại khi có tín hiệu!");
     }
     Serial.flush();
 
-    // 3. Khởi tạo Magnetometer (HMC5883L / QMC5883L tự thích ứng)
+    // 3. Khởi tạo Magnetometer (HMC5883L / QMC5883L)
     Serial.println("[INIT] Đang khởi tạo Magnetometer...");
-    Serial.flush();
     mag.begin();
-    Serial.flush();
 
     // 4. Khởi tạo Barometer BMP280
     Serial.println("[INIT] Đang khởi tạo BMP280...");
-    Serial.flush();
     baro.begin(I2C_ADDR_BMP280_PRI);
     Serial.flush();
 
     // 5. Khởi tạo GPS ATGM336H qua UART1 (RX=GPIO17, TX=GPIO18)
     Serial.println("[INIT] Đang khởi tạo GPS ATGM336H...");
-    Serial.flush();
     gps.begin(PIN_GPS_RX, PIN_GPS_TX, GPS_BAUDRATE);
     Serial.flush();
 
-    // 6. Khởi tạo Driver PWM Motor (Hỗ trợ Native GPIO LEDC và PCA9685)
+    // 6. Khởi tạo Driver PWM Motor (Hỗ trợ Native GPIO LEDC 4, 5, 6, 7 và PCA9685)
     Serial.println("[INIT] Đang khởi tạo Motor Controller...");
-    Serial.flush();
     motors.begin(USE_PCA9685_FOR_MOTORS, I2C_ADDR_PCA9685_PRI);
     Serial.flush();
 
@@ -387,6 +464,7 @@ void setup() {
     Serial.flush();
 
 #if ENABLE_WIFI_COCKPIT
+    wifiInput.setGcsForwarder(&rcInput);
     wifiInput.begin();
 
     // Khởi tạo FreeRTOS Task chạy tác vụ Mạng / Wi-Fi trên Core 0
@@ -444,7 +522,6 @@ void loop() {
 
         // Trọng tài nguồn điều khiển (Input Arbitration):
         // Nếu hệ thống đang ARM, giữ cố định nguồn điều khiển đã ARM để Failsafe xử lý nếu mất kết nối
-        static ControlInputSource* armingSource = nullptr;
         ControlInputSource* activeInput = &rcInput;
 
         if (motors.isArmed() && armingSource != nullptr) {
@@ -454,24 +531,36 @@ void loop() {
         }
         const ControlData& ctrl = activeInput->getControlData();
 
-        // 1.2. Xử lý yêu cầu ARM / DISARM từ người dùng (Edge & Rate-limited Logging)
+        // 1.2. Xử lý yêu cầu ARM / DISARM từ người dùng (Edge Detection & Reset Mechanism)
+        static bool lastArmSwitch = false;
+        bool armSwitchRisingEdge = ctrl.armSwitch && !lastArmSwitch;
+        lastArmSwitch = ctrl.armSwitch;
+
         static uint32_t lastArmRejectLogMs = 0;
-        if (ctrl.armSwitch && !motors.isArmed()) {
+        if (armSwitchRisingEdge && !motors.isArmed()) {
             String denyReason;
             if (failsafe.canArm(ctrl, attitude.getAttitude(), imu.isHealthy(), denyReason)) {
                 motors.arm();
                 armingSource = activeInput;
+                gcsArmed = false;
                 Serial.printf("[ARM OK] Hệ thống đã ARM bởi nguồn: %s\n",
                               (activeInput == &wifiInput) ? "Wi-Fi Smartphone" : "Serial/RC");
             } else if (millis() - lastArmRejectLogMs >= 1000) {
                 lastArmRejectLogMs = millis();
                 Serial.printf("[ARM REJECTED] %s\n", denyReason.c_str());
             }
-        } else if (!ctrl.armSwitch && motors.isArmed() && activeInput == armingSource) {
+        } else if (!ctrl.armSwitch && motors.isArmed() && activeInput == armingSource && !gcsArmed) {
             motors.disarm();
             mixer.resetPids();
             armingSource = nullptr;
+            failsafe.reset();
             Serial.println("[DISARM] Đã ngắt động cơ theo lệnh người lái.");
+        } else if (!ctrl.armSwitch && !motors.isArmed()) {
+            // Khi gạt công tắc về OFF trong lúc Disarm, tự động xóa cờ Emergency Failsafe để cho phép ARM lại
+            if (failsafe.getState() == FS_EMERGENCY) {
+                failsafe.reset();
+            }
+            armingSource = nullptr;
         }
 
         // 1.3. Đọc dữ liệu IMU (Gia tốc kế & Con quay hồi chuyển)
@@ -518,8 +607,15 @@ void loop() {
         telem.roll = currentAtt.roll;
         telem.pitch = currentAtt.pitch;
         telem.yaw = currentAtt.yaw;
+        telem.rateRoll = currentAtt.rateRoll;
+        telem.ratePitch = currentAtt.ratePitch;
+        telem.rateYaw = currentAtt.rateYaw;
+        telem.throttle = ctrl.throttle;
         telem.altitude = currentBaro.relativeAltitude;
-        telem.batteryVoltage = realVbat; // Đọc trực tiếp từ cảm biến ADC chân GPIO 1 thực tế
+        telem.batteryVoltage = realVbat;
+        telem.ax = imu.getData().ax;
+        telem.ay = imu.getData().ay;
+        telem.az = imu.getData().az;
         telem.m1 = currentOut.m1;
         telem.m2 = currentOut.m2;
         telem.m3 = currentOut.m3;
@@ -527,6 +623,10 @@ void loop() {
         telem.isArmed = motors.isArmed();
         telem.failsafeState = static_cast<uint8_t>(fsState);
         telem.flightLoopTimeUs = micros() - currentUs;
+        telem.imuOk = imu.isHealthy();
+        telem.baroOk = baro.isHealthy();
+        telem.magOk = mag.isHealthy();
+        telem.pcaOk = motors.isHealthy();
 
         wifiInput.updateTelemetry(telem);
     }
@@ -565,19 +665,15 @@ void loop() {
     }
 
     // -------------------------------------------------------------------------
-    // 4. HEARTBEAT (1Hz): Nhịp tim hệ thống & Tự động kết nối lại MPU nếu mất
+    // 4. HEARTBEAT (1Hz): Nhịp tim hệ thống & Tự động phát hiện cắm nóng cảm biến
     // -------------------------------------------------------------------------
     if (millis() - lastHeartbeatMs >= 1000) {
         lastHeartbeatMs = millis();
 
-        // Tự động thử kết nối lại MPU6050 nếu lúc bật nguồn chưa cắm và hiện chưa ARM
+        // Tự động thử kết nối lại IMU MPU6050 nếu chưa kết nối và motor chưa ARM
         if (!imu.isHealthy() && !motors.isArmed()) {
-            Wire.beginTransmission(I2C_ADDR_MPU6050_PRI);
-            if (Wire.endTransmission() == 0 || (Wire.beginTransmission(I2C_ADDR_MPU6050_ALT), Wire.endTransmission() == 0)) {
-                Serial.println("[AUTO-DETECT] Phát hiện MPU6050 trên Bus I2C! Đang khởi tạo...");
-                if (imu.begin()) {
-                    imu.calibrateGyro(300);
-                }
+            if (imu.begin(I2C_ADDR_MPU6050_PRI)) {
+                imu.calibrateGyro(300);
             }
         }
     }

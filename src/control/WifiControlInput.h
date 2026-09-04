@@ -7,15 +7,21 @@
 #include <WebSocketsServer.h>
 #include <atomic>
 #include "ControlInputSource.h"
+#include "SerialControlInput.h"
 #include "../config.h"
 
-// Cấu trúc Telemetry truyền từ Core 1 sang Core 0 để gửi về điện thoại
+// Cấu trúc Telemetry truyền từ Core 1 sang Core 0 để gửi về điện thoại & Web Tuner
 struct TelemetryPayload {
     float roll;
     float pitch;
     float yaw;
+    float rateRoll;
+    float ratePitch;
+    float rateYaw;
+    float throttle;
     float altitude;
     float batteryVoltage;
+    float ax, ay, az;
     uint16_t m1;
     uint16_t m2;
     uint16_t m3;
@@ -23,6 +29,10 @@ struct TelemetryPayload {
     bool isArmed;
     uint8_t failsafeState;
     uint32_t flightLoopTimeUs;
+    bool imuOk;
+    bool baroOk;
+    bool magOk;
+    bool pcaOk;
 };
 
 class WifiControlInput : public ControlInputSource {
@@ -45,8 +55,15 @@ public:
     // Gọi từ Core 0: Xử lý HTTP Client và WebSockets events (Non-blocking)
     void processNetwork();
 
-    // Kiểm tra có điện thoại đang kết nối WebSocket hay không
-    bool isPhoneConnected() const { return clientConnected_.load(); }
+    // Gán tham chiếu đến SerialControlInput để chuyển tiếp lệnh GCS từ WiFi
+    void setGcsForwarder(SerialControlInput* gcsTarget) { gcsTarget_ = gcsTarget; }
+
+    // Kiểm tra có điện thoại đang kết nối WebSocket VÀ gửi gói điều khiển $C,... hay không
+    // (Phân biệt Phone Cockpit thực sự vs GCS Tuner chỉ gửi text commands)
+    bool isPhoneConnected() const { return phoneControlActive_.load(); }
+
+    // Kiểm tra có bất kỳ client WebSocket nào đang kết nối (bao gồm cả Tuner)
+    bool isAnyClientConnected() const { return clientConnected_.load(); }
     uint8_t getConnectedClientCount() const { return connectedClientsCount_.load(); }
 
     // Reset về trạng thái an toàn
@@ -55,6 +72,7 @@ public:
 private:
     uint16_t httpPort_;
     uint16_t wsPort_;
+    SerialControlInput* gcsTarget_ = nullptr;
 
     WebServer server_;
     WebSocketsServer wsServer_;
@@ -73,6 +91,7 @@ private:
     std::atomic<uint8_t> telemReadIdx_;
 
     std::atomic<bool> clientConnected_;
+    std::atomic<bool> phoneControlActive_;  // true chỉ khi nhận được gói $C,... từ Phone Cockpit
     std::atomic<uint8_t> connectedClientsCount_;
     uint32_t lastTelemBroadcastMs_;
 

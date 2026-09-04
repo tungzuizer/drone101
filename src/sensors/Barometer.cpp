@@ -21,27 +21,22 @@ Barometer::Barometer()
 }
 
 bool Barometer::begin(uint8_t i2cAddress) {
-    address_ = i2cAddress;
+    address_ = (i2cAddress != 0) ? i2cAddress : I2C_ADDR_BMP280_PRI;
     isHealthy_ = false;
-
-    // Kiểm tra nhanh sự hiện diện vật lý trên bus I2C trước khi đọc thanh ghi
-    Wire.beginTransmission(address_);
-    bool deviceFound = (Wire.endTransmission() == 0);
-
-    if (!deviceFound && address_ == I2C_ADDR_BMP280_PRI) {
-        address_ = I2C_ADDR_BMP280_ALT;
-        Wire.beginTransmission(address_);
-        deviceFound = (Wire.endTransmission() == 0);
-    }
-
-    if (!deviceFound) {
-        return false;
-    }
 
     // 1. Kiểm tra Chip ID
     uint8_t chipId = 0;
     if (!readRegisters(BMP_REG_CHIP_ID, &chipId, 1)) {
-        return false;
+        // Thử địa chỉ phụ nếu địa chỉ chính không phản hồi
+        if (address_ == I2C_ADDR_BMP280_PRI) {
+            address_ = I2C_ADDR_BMP280_ALT;
+            if (!readRegisters(BMP_REG_CHIP_ID, &chipId, 1)) {
+                Serial.println("[BARO ERROR] Không tìm thấy BMP280 ở cả 0x76 và 0x77!");
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     if (chipId != 0x58 && chipId != 0x60 && chipId != 0x56 && chipId != 0x57) {
@@ -60,7 +55,6 @@ bool Barometer::begin(uint8_t i2cAddress) {
 
     // 4. Cấu hình IIR Filter & Standby time:
     // Standby = 0.5ms (000), Filter Coefficient = 16 (100) -> 0x10
-    // Bộ lọc IIR cực kỳ quan trọng đối với Drone để loại bỏ nhiễu gió do cánh quạt thổi!
     if (!writeRegister(BMP_REG_CONFIG, 0x10)) {
         return false;
     }
@@ -195,12 +189,19 @@ bool Barometer::writeRegister(uint8_t regAddr, uint8_t data) {
 }
 
 bool Barometer::readRegisters(uint8_t regAddr, uint8_t* buffer, uint8_t length) {
+    if (buffer == nullptr || length == 0) {
+        return false;
+    }
     Wire.beginTransmission(address_);
     Wire.write(regAddr);
     if (Wire.endTransmission(false) != 0) {
-        return false;
+        Wire.beginTransmission(address_);
+        Wire.write(regAddr);
+        if (Wire.endTransmission(true) != 0) {
+            return false;
+        }
     }
-    uint8_t count = Wire.requestFrom(address_, length);
+    uint8_t count = Wire.requestFrom((int)address_, (int)length);
     if (count != length) {
         return false;
     }

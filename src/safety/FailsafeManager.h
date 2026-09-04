@@ -49,6 +49,12 @@ public:
     FailsafeReason getReason() const { return reason_; }
     const char* getReasonString() const;
 
+    // Cấu hình tham số an toàn động
+    void setTimeout(uint32_t ms) { signalTimeoutMs_ = ms; }
+    void setMaxTilt(float deg) { maxTiltDeg_ = deg; }
+    uint32_t getTimeout() const { return signalTimeoutMs_; }
+    float getMaxTilt() const { return maxTiltDeg_; }
+
     // Reset Failsafe sau khi đã xử lý xong
     void reset();
 

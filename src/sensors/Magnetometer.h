@@ -22,8 +22,8 @@ class Magnetometer {
 public:
     Magnetometer();
 
-    // Tự động phát hiện và khởi tạo HMC5883L (0x1E) hoặc QMC5883L (0x0D)
-    bool begin();
+    // Tự động phát hiện và khởi tạo HMC5883L (0x1E) hoặc QMC5883L/P (0x0D, 0x0C, 0x2C...)
+    bool begin(uint8_t targetAddr = 0);
 
     // Đọc dữ liệu từ kế và cập nhật từ trường 3 trục
     bool update();

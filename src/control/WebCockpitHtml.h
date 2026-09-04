@@ -780,20 +780,20 @@ const char PAGE_COCKPIT_HTML[] PROGMEM = R"rawliteral(
       };
 
       ws.onmessage = (event) => {
-        if (event.data.startsWith('$T,')) {
-          const p = event.data.substring(3).split(',');
-          if (p.length >= 11) {
+        if (event.data.startsWith('$TEL,')) {
+          const p = event.data.substring(5).split(',');
+          if (p.length >= 14) {
             telemetryData.roll = parseFloat(p[0]);
             telemetryData.pitch = parseFloat(p[1]);
             telemetryData.yaw = parseFloat(p[2]);
-            telemetryData.alt = parseFloat(p[3]);
-            telemetryData.vbat = parseFloat(p[4]);
-            telemetryData.m1 = parseInt(p[5]);
-            telemetryData.m2 = parseInt(p[6]);
-            telemetryData.m3 = parseInt(p[7]);
-            telemetryData.m4 = parseInt(p[8]);
-            telemetryData.armed = parseInt(p[9]);
-            telemetryData.fsState = parseInt(p[10]);
+            telemetryData.alt = parseFloat(p[11]);
+            telemetryData.vbat = 0;
+            telemetryData.m1 = parseInt(p[7]);
+            telemetryData.m2 = parseInt(p[8]);
+            telemetryData.m3 = parseInt(p[9]);
+            telemetryData.m4 = parseInt(p[10]);
+            telemetryData.armed = parseInt(p[12]);
+            telemetryData.fsState = parseInt(p[13]);
 
             renderTelemetry();
           }

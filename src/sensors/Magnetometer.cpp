@@ -24,9 +24,32 @@ Magnetometer::Magnetometer()
     memset(&data_, 0, sizeof(MagData));
 }
 
-bool Magnetometer::begin() {
+bool Magnetometer::begin(uint8_t targetAddr) {
     isHealthy_ = false;
     chipType_ = MAG_CHIP_UNKNOWN;
+
+    // Nếu chỉ định địa chỉ cụ thể
+    if (targetAddr != 0) {
+        Wire.beginTransmission(targetAddr);
+        if (Wire.endTransmission() == 0) {
+            address_ = targetAddr;
+            if (targetAddr == I2C_ADDR_HMC5883L) {
+                chipType_ = MAG_CHIP_HMC5883L;
+                if (initHMC5883L()) {
+                    isHealthy_ = true;
+                    Serial.println("[MAG OK] Khởi tạo thành công chip HMC5883L (0x1E)");
+                    return true;
+                }
+            } else {
+                chipType_ = MAG_CHIP_QMC5883L;
+                if (initQMC5883L()) {
+                    isHealthy_ = true;
+                    Serial.printf("[MAG OK] Khởi tạo thành công chip QMC5883 (0x%02X)\n", targetAddr);
+                    return true;
+                }
+            }
+        }
+    }
 
     // 1. Thử nhận diện chip QMC5883L / QMC5883P tại 0x0D (hoặc 0x0C, 0x2C)
     const uint8_t qmcAddrs[] = {0x0D, 0x0C, 0x2C};
@@ -55,6 +78,7 @@ bool Magnetometer::begin() {
         }
     }
 
+    Serial.println("[MAG ERROR] Không tìm thấy chip từ kế HMC5883L (0x1E) hoặc QMC5883L (0x0D)!");
     return false;
 }
 
@@ -70,10 +94,19 @@ bool Magnetometer::initHMC5883L() {
 }
 
 bool Magnetometer::initQMC5883L() {
-    // Set/Reset period: 0x01 theo khuyến nghị của datasheet
-    if (!writeRegister(address_, QMC_REG_SET_RESET, 0x01)) return false;
-    // Control 1: OSR=512 (0x00), RNG=±8G (0x10), ODR=200Hz (0x0C), MODE=Continuous (0x01) -> 0x1D
-    if (!writeRegister(address_, QMC_REG_CONTROL_1, 0x1D)) return false;
+    // 1. Soft Reset chip (Ghi bit 7 thanh ghi Control 2: 0x0A = 0x80)
+    writeRegister(address_, 0x0A, 0x80);
+    delay(15);
+    // 2. Set/Reset period: 0x01 theo khuyến nghị của datasheet
+    writeRegister(address_, QMC_REG_SET_RESET, 0x01);
+    delay(5);
+    // 3. Control 1: OSR=512 (0x00), RNG=±8G (0x10), ODR=200Hz (0x0C), MODE=Continuous (0x01) -> 0x1D
+    if (!writeRegister(address_, QMC_REG_CONTROL_1, 0x1D)) {
+        // Thử cấu hình tiêu chuẩn ODR=100Hz (0x08), MODE=Continuous (0x01) -> 0x19
+        if (!writeRegister(address_, QMC_REG_CONTROL_1, 0x19)) {
+            return false;
+        }
+    }
     delay(20);
     return true;
 }
@@ -254,10 +287,12 @@ bool Magnetometer::writeRegister(uint8_t devAddr, uint8_t regAddr, uint8_t data)
 }
 
 bool Magnetometer::readRegisters(uint8_t devAddr, uint8_t regAddr, uint8_t* buffer, uint8_t length) {
+    if (buffer == nullptr || length == 0) {
+        return false;
+    }
     Wire.beginTransmission(devAddr);
     Wire.write(regAddr);
     if (Wire.endTransmission(false) != 0) {
-        // Thử lại với stop condition nếu chip không hỗ trợ repeated-start
         Wire.beginTransmission(devAddr);
         Wire.write(regAddr);
         if (Wire.endTransmission(true) != 0) {

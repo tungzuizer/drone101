@@ -1,190 +1,120 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-// Sơ đồ chân I2C trên ESP32-S3 theo chuẩn thiết kế
-#define PIN_I2C_SDA 8
-#define PIN_I2C_SCL 9
-#define I2C_FREQ    400000UL // 400kHz Fast Mode
+// Các cặp chân I2C thông dụng trên ESP32-S3
+struct I2cPinPair {
+    const char* name;
+    uint8_t sda;
+    uint8_t scl;
+};
 
-// Danh mục địa chỉ I2C dự kiến
-#define ADDR_PCA9685     0x40
-#define ADDR_MPU6050_PRI 0x68
-#define ADDR_MPU6050_SEC 0x69
-#define ADDR_HMC5883L    0x1E
-#define ADDR_QMC5883L    0x0D
-#define ADDR_BMP280_PRI  0x76
-#define ADDR_BMP280_SEC  0x77
+const I2cPinPair PIN_PAIRS[] = {
+    {"Cặp chân mặc định dự án (GPIO8/GPIO9)", 8, 9},
+    {"Cặp chân phụ A (GPIO1/GPIO2)",          1, 2},
+    {"Cặp chân phụ B (GPIO41/GPIO42)",        41, 42},
+    {"Cặp chân phụ C (GPIO11/GPIO12)",        11, 12},
+    {"Cặp chân phụ D (GPIO21/GPIO47)",        21, 47}
+};
+const uint8_t NUM_PAIRS = sizeof(PIN_PAIRS) / sizeof(PIN_PAIRS[0]);
 
-void scanI2CBus() {
-    Serial.println("\n-----------------------------------------------------------");
-    Serial.printf("[SCAN] Bắt đầu quét Bus I2C (SDA=GPIO%d, SCL=GPIO%d @ 400kHz)...\n", PIN_I2C_SDA, PIN_I2C_SCL);
-    Serial.println("-----------------------------------------------------------");
+void checkPinVoltages(uint8_t sdaPin, uint8_t sclPin) {
+    Wire.end();
+    pinMode(sdaPin, INPUT_PULLUP);
+    pinMode(sclPin, INPUT_PULLUP);
+    delay(10);
+    int sda = digitalRead(sdaPin);
+    int scl = digitalRead(sclPin);
 
-    uint8_t devicesFound = 0;
-    bool foundMpu = false;
-    bool foundHmc = false;
-    bool foundQmc = false;
-    bool foundBmp = false;
-    bool foundPca = false;
+    Serial.printf("  -> Trạng thái điện áp: SDA (GPIO%d)=%s | SCL (GPIO%d)=%s\n",
+                  sdaPin, sda ? "3.3V (HIGH) [OK]" : "0V (LOW) [LỖI: Chập Mass hoặc lỏng dây!]",
+                  sclPin, scl ? "3.3V (HIGH) [OK]" : "0V (LOW) [LỖI: Chập Mass hoặc lỏng dây!]");
+}
 
-    for (uint8_t address = 1; address < 127; address++) {
-        Wire.beginTransmission(address);
-        uint8_t error = Wire.endTransmission();
+bool scanPair(uint8_t sdaPin, uint8_t sclPin, uint32_t freq) {
+    Wire.end();
+    pinMode(sdaPin, INPUT_PULLUP);
+    pinMode(sclPin, INPUT_PULLUP);
+    delay(10);
 
-        if (error == 0) {
-            Serial.printf(" -> Tìm thấy thiết bị tại địa chỉ: 0x%02X (%3d) | ", address, address);
-            devicesFound++;
-
-            switch (address) {
-                case ADDR_PCA9685:
-                    Serial.println("PCA9685 (16-ch PWM Driver cho 4 ESC) [OK]");
-                    foundPca = true;
-                    break;
-                case ADDR_MPU6050_PRI:
-                    Serial.println("MPU6050 IMU (Địa chỉ chính AD0=GND) [OK]");
-                    foundMpu = true;
-                    break;
-                case ADDR_MPU6050_SEC:
-                    Serial.println("MPU6050 IMU (Địa chỉ phụ AD0=VCC) [OK]");
-                    foundMpu = true;
-                    break;
-                case ADDR_HMC5883L:
-                    Serial.println("HMC5883L / QMC5883L (La bàn từ trường) [OK]");
-                    foundHmc = true;
-                    break;
-                case ADDR_QMC5883L:
-                    Serial.println("QMC5883L (Chip la bàn từ trường Clone chuẩn DA5883) [OK]");
-                    foundQmc = true;
-                    break;
-                case ADDR_BMP280_PRI:
-                    Serial.println("BMP280 Barometer (Địa chỉ SDO=GND: 0x76) [OK]");
-                    foundBmp = true;
-                    break;
-                case ADDR_BMP280_SEC:
-                    Serial.println("BMP280 Barometer (Địa chỉ SDO=VCC: 0x77) [OK]");
-                    foundBmp = true;
-                    break;
-                default:
-                    Serial.println("Thiết bị không xác định");
-                    break;
-            }
-        } else if (error == 4) {
-            Serial.printf(" [LỖI BUS] Lỗi đường truyền tại địa chỉ: 0x%02X\n", address);
+    if (digitalRead(sdaPin) == LOW || digitalRead(sclPin) == LOW) {
+        // Thử phát xung giải phóng bus
+        pinMode(sclPin, OUTPUT);
+        for (int i = 0; i < 9; i++) {
+            digitalWrite(sclPin, LOW); delayMicroseconds(10);
+            digitalWrite(sclPin, HIGH); delayMicroseconds(10);
         }
+        pinMode(sdaPin, INPUT_PULLUP);
+        pinMode(sclPin, INPUT_PULLUP);
+        delay(10);
     }
 
-    Serial.println("-----------------------------------------------------------");
-    Serial.printf("[KẾT QUẢ] Tìm thấy tổng cộng %d thiết bị I2C.\n", devicesFound);
-
-    // Kiểm tra chi tiết và phân biệt chip La bàn (HMC5883L vs QMC5883L)
-    Serial.println("\n[CHI TIẾT CHIP NHẬN DIỆN]:");
-
-    // 1. Kiểm tra MPU6050
-    if (foundMpu) {
-        Wire.beginTransmission(ADDR_MPU6050_PRI);
-        Wire.write(0x75); // WHO_AM_I register
-        Wire.endTransmission(false);
-        Wire.requestFrom((uint16_t)ADDR_MPU6050_PRI, (uint8_t)1);
-        if (Wire.available()) {
-            uint8_t whoami = Wire.read();
-            Serial.printf("  ✔ MPU6050 WHO_AM_I = 0x%02X (Chuẩn là 0x68)\n", whoami);
-        }
-    } else {
-        Serial.println("  ❌ MPU6050: KHÔNG TÌM THẤY! Kiểm tra lại dây SDA/SCL & nguồn 3.3V.");
+    if (digitalRead(sdaPin) == LOW || digitalRead(sclPin) == LOW) {
+        Serial.printf("  [BỎ QUA] Bus SDA=%d, SCL=%d bị kẹt 0V (GND).\n", sdaPin, sclPin);
+        return false;
     }
 
-    // 2. Phân biệt HMC5883L thật vs QMC5883L clone
-    if (foundHmc) {
-        // Đọc 3 thanh ghi Identification của HMC5883L (Reg 10, 11, 12: 'H', '4', '3')
-        Wire.beginTransmission(ADDR_HMC5883L);
-        Wire.write(10);
-        Wire.endTransmission(false);
-        Wire.requestFrom((uint16_t)ADDR_HMC5883L, (uint8_t)3);
-        char id[4] = {0};
-        if (Wire.available() >= 3) {
-            id[0] = Wire.read();
-            id[1] = Wire.read();
-            id[2] = Wire.read();
-        }
-        if (strcmp(id, "H43") == 0) {
-            Serial.println("  ✔ La bàn: CHÍNH HÃNG Honeywell HMC5883L (ID: H43, Addr: 0x1E)");
-        } else {
-            Serial.printf("  ⚠ La bàn: Chip tại 0x1E nhưng ID là '%s' (Biến thể HMC)\n", id);
-        }
-    } else if (foundQmc) {
-        Wire.beginTransmission(ADDR_QMC5883L);
-        Wire.write(0x0D); // Chip ID register của QMC5883L
-        Wire.endTransmission(false);
-        Wire.requestFrom((uint16_t)ADDR_QMC5883L, (uint8_t)1);
-        uint8_t qmcId = Wire.available() ? Wire.read() : 0;
-        Serial.printf("  ✔ La bàn: CHIP CLONE QMC5883L / DA5883 (Addr: 0x0D, Chip ID: 0x%02X)\n", qmcId);
-    } else {
-        Serial.println("  ❌ La bàn (HMC/QMC5883L): KHÔNG TÌM THẤY!");
-    }
+    Wire.begin(sdaPin, sclPin, freq);
+    Wire.setTimeOut(20);
 
-    // 3. Kiểm tra BMP280
-    uint8_t bmpAddr = 0;
-    if (foundBmp) {
-        Wire.beginTransmission(ADDR_BMP280_PRI);
+    uint8_t found = 0;
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
         if (Wire.endTransmission() == 0) {
-            bmpAddr = ADDR_BMP280_PRI;
-        } else {
-            bmpAddr = ADDR_BMP280_SEC;
+            found++;
+            Serial.printf("  ✔ [TÌM THẤY] Địa chỉ: 0x%02X | ", addr);
+            switch (addr) {
+                case 0x68: Serial.println("MPU6050 IMU (AD0=GND)"); break;
+                case 0x69: Serial.println("MPU6050 IMU (AD0=3.3V)"); break;
+                case 0x76: Serial.println("BMP280 Barometer (SDO=GND)"); break;
+                case 0x77: Serial.println("BMP280 Barometer (SDO=3.3V)"); break;
+                case 0x0D: Serial.println("QMC5883L / DA5883 Compass"); break;
+                case 0x1E: Serial.println("HMC5883L Compass"); break;
+                case 0x40: Serial.println("PCA9685 PWM Driver"); break;
+                case 0x70: Serial.println("PCA9685 All-Call"); break;
+                default:   Serial.println("Thiết bị I2C khác"); break;
+            }
         }
     }
-    if (bmpAddr != 0) {
-        Wire.beginTransmission(bmpAddr);
-        Wire.write(0xD0); // Chip ID register của BMP280 (0x58)
-        Wire.endTransmission(false);
-        Wire.requestFrom((uint16_t)bmpAddr, (uint8_t)1);
-        uint8_t bmpId = Wire.available() ? Wire.read() : 0;
-        Serial.printf("  ✔ BMP280 Barometer: Addr 0x%02X, Chip ID = 0x%02X (Chuẩn: 0x58)\n", bmpAddr, bmpId);
-    } else {
-        Serial.println("  ❌ BMP280: KHÔNG TÌM THẤY!");
+    if (found == 0) {
+        Serial.println("  (Không phát hiện thiết bị nào trên cặp chân này)");
     }
+    return (found > 0);
+}
 
-    // 4. Kiểm tra PCA9685
-    if (foundPca) {
-        Wire.beginTransmission(ADDR_PCA9685);
-        Wire.write(0x00); // MODE1
-        Wire.endTransmission(false);
-        Wire.requestFrom((uint16_t)ADDR_PCA9685, (uint8_t)1);
-        uint8_t mode1 = Wire.available() ? Wire.read() : 0;
-        Serial.printf("  ✔ PCA9685 PWM Driver: Addr 0x40, MODE1 = 0x%02X\n", mode1);
-    } else {
-        Serial.println("  ❌ PCA9685: KHÔNG TÌM THẤY!");
+void runFullDiagnostics() {
+    Serial.println("\n=======================================================");
+    Serial.println("     ESP32-S3 TOÀN DIỆN CHẨN ĐOÁN PHẦN CỨNG I2C        ");
+    Serial.println("=======================================================");
+
+    for (uint8_t i = 0; i < NUM_PAIRS; i++) {
+        Serial.printf("\n[%d/%d] Kiểm tra: %s (SDA=%d, SCL=%d):\n",
+                      i + 1, NUM_PAIRS, PIN_PAIRS[i].name, PIN_PAIRS[i].sda, PIN_PAIRS[i].scl);
+        checkPinVoltages(PIN_PAIRS[i].sda, PIN_PAIRS[i].scl);
+        scanPair(PIN_PAIRS[i].sda, PIN_PAIRS[i].scl, 100000);
     }
-    Serial.println("===========================================================\n");
+    Serial.println("\n=======================================================");
+    Serial.println("Hướng dẫn kiểm tra nhanh:");
+    Serial.println("1. Rút hết tất cả cảm biến, chỉ cắm duy nhất 1 module MPU6050.");
+    Serial.println("2. Đấu nối chuẩn 4 dây MPU6050:");
+    Serial.println("   VCC -> 3.3V (hoặc 5V nếu module có IC nguồn 662K)");
+    Serial.println("   GND -> GND");
+    Serial.println("   SDA -> GPIO 8");
+    Serial.println("   SCL -> GPIO 9");
+    Serial.println("=======================================================\n");
 }
 
 void setup() {
     Serial.begin(115200);
-    unsigned long start = millis();
-    while (!Serial && (millis() - start < 2000)) {
-        delay(10);
-    }
-
-    Serial.println("\n\n=======================================================");
-    Serial.println("    ESP32-S3 I2C SCANNER & CHIP IDENTIFIER TOOL        ");
-    Serial.println("=======================================================");
-
-    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQ);
-    Wire.setTimeOut(20);
-
-    // Chạy quét I2C lần đầu khi khởi động
-    scanI2CBus();
+    delay(500);
+    runFullDiagnostics();
 }
 
 void loop() {
-    // Tự động quét lại mỗi 4 giây hoặc khi nhận phím bất kỳ từ Serial
     if (Serial.available()) {
         while (Serial.available()) Serial.read();
-        scanI2CBus();
+        runFullDiagnostics();
     }
-
-    static uint32_t lastScan = 0;
-    if (millis() - lastScan > 4000) {
-        lastScan = millis();
-        scanI2CBus();
-    }
+    delay(4000);
+    runFullDiagnostics();
 }
+

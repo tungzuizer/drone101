@@ -28,33 +28,26 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     address_ = i2cAddress;
     isHealthy_ = false;
 
-    // Kiểm tra nhanh sự hiện diện vật lý trên bus I2C trước khi đọc thanh ghi
-    Wire.beginTransmission(address_);
-    bool deviceFound = (Wire.endTransmission() == 0);
+    // 1. Kiểm tra sự hiện diện của MPU6050 qua thanh ghi WHO_AM_I (0x75)
+    uint8_t whoAmI = 0;
+    bool found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
 
-    if (!deviceFound && address_ == I2C_ADDR_MPU6050_PRI) {
+    // Nếu không thấy tại địa chỉ chính (0x68), tự động thử địa chỉ phụ (0x69)
+    if (!found && address_ == I2C_ADDR_MPU6050_PRI) {
         address_ = I2C_ADDR_MPU6050_ALT;
-        Wire.beginTransmission(address_);
-        deviceFound = (Wire.endTransmission() == 0);
-        if (deviceFound) {
+        found = readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1);
+        if (found) {
             Serial.printf("[IMU INFO] Tìm thấy MPU6050 tại địa chỉ phụ AD0=3.3V (0x%02X)\n", address_);
         }
     }
 
-    if (!deviceFound) {
-        Serial.printf("[IMU ERROR] Không phát hiện MPU6050 tại 0x68 hoặc 0x69! Hãy kiểm tra dây SDA(GPIO%d), SCL(GPIO%d), VCC và GND.\n",
+    if (!found) {
+        Serial.printf("[IMU ERROR] Không thể đọc thanh ghi WHO_AM_I tại cả 0x68 và 0x69 trên SDA=GPIO%d, SCL=GPIO%d!\n",
                       PIN_I2C_SDA, PIN_I2C_SCL);
         return false;
     }
 
-    // 1. Đọc ID chip qua thanh ghi WHO_AM_I
-    uint8_t whoAmI = 0;
-    if (!readRegisters(MPU_REG_WHO_AM_I, &whoAmI, 1)) {
-        Serial.println("[IMU ERROR] Không thể đọc thanh ghi WHO_AM_I của MPU6050!");
-        return false;
-    }
-
-    if (whoAmI != 0x68 && whoAmI != 0x70 && whoAmI != 0x71 && whoAmI != 0x73) {
+    if (whoAmI != 0x68 && whoAmI != 0x70 && whoAmI != 0x71 && whoAmI != 0x72 && whoAmI != 0x73 && whoAmI != 0x98) {
         Serial.printf("[IMU WARN] WHO_AM_I nhận được là 0x%02X (Chuẩn MPU6050 là 0x68), tiếp tục khởi tạo...\n", whoAmI);
     }
 
@@ -65,9 +58,9 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     }
     delay(100);
 
-    // 3. Đánh thức chip và chọn nguồn Clock tối ưu: PLL với trục Gyro X (ổn định hơn bộ dao động nội)
+    // 3. Đánh thức chip và chọn nguồn Clock tối ưu: PLL với trục Gyro X
     if (!writeRegister(MPU_REG_PWR_MGMT_1, 0x01)) {
-        Serial.println("[IMU ERROR] Không thể đánh thức MPU6050 (Clock PLL)! Có thể sụt áp VCC.");
+        Serial.println("[IMU ERROR] Không thể đánh thức MPU6050 (Clock PLL)!");
         return false;
     }
     delay(15);
@@ -83,22 +76,20 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     }
 
     // 6. Cấu hình Full Scale Range cho Gyroscope
-    // FS_SEL: 0=±250dps, 1=±500dps, 2=±1000dps, 3=±2000dps
     uint8_t gyroConfigVal = (MPU6050_GYRO_FS_SEL << 3);
     if (!writeRegister(MPU_REG_GYRO_CONFIG, gyroConfigVal)) {
         return false;
     }
 
     // 7. Cấu hình Full Scale Range cho Accelerometer
-    // AFS_SEL: 0=±2g, 1=±4g, 2=±8g, 3=±16g
     uint8_t accelConfigVal = (MPU6050_ACCEL_FS_SEL << 3);
     if (!writeRegister(MPU_REG_ACCEL_CONFIG, accelConfigVal)) {
         return false;
     }
 
-    // 8. Bật chế độ I2C Bypass (Cho phép Magnetometer kết nối trực tiếp hoặc qua chân XDA/XCL của MPU6050)
-    writeRegister(MPU_REG_USER_CTRL, 0x00);   // Tắt I2C Master nội
-    writeRegister(MPU_REG_INT_PIN_CFG, 0x02); // Bật I2C Bypass multiplexer
+    // 8. Bật chế độ I2C Bypass (Cho phép Magnetometer kết nối trực tiếp)
+    writeRegister(MPU_REG_USER_CTRL, 0x00);
+    writeRegister(MPU_REG_INT_PIN_CFG, 0x02);
 
     // Cập nhật hệ số chia tỷ lệ tương ứng
     gyroScaleFactor_  = MPU6050_GYRO_SCALE;
@@ -107,6 +98,7 @@ bool ImuSensor::begin(uint8_t i2cAddress) {
     isHealthy_ = true;
     const char* orientStr = "DEFAULT (0°)";
     if (orientation_ == IMU_ALIGN_CW90) orientStr = "CW90 (X->Phải, Y->Sau)";
+    else if (orientation_ == IMU_ALIGN_CW90_VERT) orientStr = "CW90_VERT (X->Lên, Y->Ngang, Dựng đứng)";
     else if (orientation_ == IMU_ALIGN_CW180) orientStr = "CW180 (X->Sau, Y->Phải)";
     else if (orientation_ == IMU_ALIGN_CCW90) orientStr = "CCW90 (X->Trái, Y->Trước)";
 
@@ -167,6 +159,19 @@ bool ImuSensor::update() {
             data_.gx = -sGy;
             data_.gy =  sGx;
             data_.gz =  sGz;
+            break;
+
+        case IMU_ALIGN_CW90_VERT:
+            // Dựng đứng + Xoay CW90: Trục X sensor hướng lên (+Z_body)
+            // Sensor X (lên)   -> Body Z (lên, trọng lực)
+            // Sensor Z (ngang) -> Body X (mũi drone, trục Roll)
+            // Sensor Y (ngang) -> Body -Y (trục Pitch, đảo dấu theo quy ước tay phải)
+            data_.ax =  sAz;
+            data_.ay = -sAy;
+            data_.az =  sAx;
+            data_.gx =  sGz;
+            data_.gy = -sGy;
+            data_.gz =  sGx;
             break;
 
         case IMU_ALIGN_CCW90:
@@ -278,13 +283,21 @@ bool ImuSensor::writeRegister(uint8_t regAddr, uint8_t data) {
 }
 
 bool ImuSensor::readRegisters(uint8_t regAddr, uint8_t* buffer, uint8_t length) {
+    if (buffer == nullptr || length == 0) {
+        return false;
+    }
     Wire.beginTransmission(address_);
     Wire.write(regAddr);
     if (Wire.endTransmission(false) != 0) {
-        return false;
+        // Thử lại với stop = true nếu repeated start không hỗ trợ
+        Wire.beginTransmission(address_);
+        Wire.write(regAddr);
+        if (Wire.endTransmission(true) != 0) {
+            return false;
+        }
     }
 
-    uint8_t count = Wire.requestFrom(address_, length);
+    uint8_t count = Wire.requestFrom((int)address_, (int)length);
     if (count != length) {
         return false;
     }

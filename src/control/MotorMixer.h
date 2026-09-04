@@ -15,6 +15,13 @@ struct MotorOutputs {
     uint16_t m4;    // Sau Trái (Rear-Left, CCW)
 };
 
+// Cấu trúc tham số đường cong điều khiển Rates (Chuẩn Betaflight)
+struct FlightRates {
+    float rcRate;       // Độ nhạy cơ bản tâm gậy (0.5 - 2.5)
+    float superRate;    // Độ tăng tốc góc ở biên gậy (0.0 - 0.90)
+    float expo;         // Độ mềm mại quanh tâm cần gạt (0.0 - 0.80)
+};
+
 class MotorMixer {
 public:
     MotorMixer(MotorController& motorController);
@@ -34,6 +41,23 @@ public:
     // Reset toàn bộ tích phân PID (Gọi khi Disarm hoặc Cần ga = 0)
     void resetPids();
 
+    // Cấu hình AirMode (Duy trì cân bằng PID hoàn hảo ngay cả khi ga = 0)
+    void setAirMode(bool enable) { airModeEnabled_ = enable; }
+    bool isAirModeEnabled() const { return airModeEnabled_; }
+
+    // Cấu hình Rates (RC Rate, Super Rate, Expo)
+    void setRates(float rcRate, float superRate, float expo);
+    const FlightRates& getRates() const { return rates_; }
+
+    // Cấu hình TPA (Throttle PID Attenuation) cho các trục Rate
+    void setTpa(float rate, float breakpoint = 0.50f);
+
+    // Cấu hình Feedforward cho Roll/Pitch và Yaw
+    void setFeedforward(float rollPitchKff, float yawKff);
+
+    // Hàm tiện ích chuyển đổi độ lệch cần gạt sang Vận tốc góc theo mô hình Betaflight Rates
+    static float calculateBetaflightRate(float stickDeflectionNorm, float rcRate, float superRate, float expo);
+
     // Truy cập các bộ điều khiển PID để Tune tham số từ GCS
     PidController& getRollAnglePid() { return rollAnglePid_; }
     PidController& getPitchAnglePid() { return pitchAnglePid_; }
@@ -44,6 +68,8 @@ public:
 private:
     MotorController& motors_;
     MotorOutputs outputs_;
+    FlightRates rates_;
+    bool airModeEnabled_;
 
     // Bộ điều khiển PID 2 tầng (Dual-Loop PID)
     // Vòng ngoài: Góc Euler (Angle Loop) -> Xuất ra vận tốc góc mong muốn (deg/s)
@@ -55,8 +81,8 @@ private:
     PidController pitchRatePid_;
     PidController yawRatePid_;
 
-    // Phân bổ và chống bão hòa công suất động cơ (Mixer Saturation Handling)
-    void applySaturationLimits(float& m1, float& m2, float& m3, float& m4, float maxPulse);
+    // Phân bổ và chống bão hòa công suất động cơ theo tỷ lệ mô-men xoắn (Proportional Torque Saturation)
+    void applySaturationLimits(float& m1, float& m2, float& m3, float& m4, float maxPulse, float minPulse);
 };
 
 #endif // MOTOR_MIXER_H

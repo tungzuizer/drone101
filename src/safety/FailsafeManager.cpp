@@ -30,7 +30,7 @@ bool FailsafeManager::canArm(const ControlData& control, const AttitudeData& att
     }
 
     if (!motors_.isHealthy()) {
-        reason = "Driver PWM PCA9685 không phản hồi!";
+        reason = "Driver PWM động cơ chưa sẵn sàng!";
         return false;
     }
 
@@ -41,13 +41,17 @@ bool FailsafeManager::canArm(const ControlData& control, const AttitudeData& att
 
     // BẮT BUỘC CẦN GA PHẢI Ở MỨC 0% KHI ARM
     if (control.throttle > 1.0f) {
-        reason = "NGUY HIỂM: Cần ga phải ở mức 0% khi kích hoạt ARM!";
+        char buf[80];
+        snprintf(buf, sizeof(buf), "Cần ga phải ở 0%% khi ARM! (Hiện tại: %.1f%%)", control.throttle);
+        reason = buf;
         return false;
     }
 
     // Kiểm tra góc đặt trên mặt đất không bị nghiêng quá 30°
     if (fabs(attitude.roll) > 30.0f || fabs(attitude.pitch) > 30.0f) {
-        reason = "Drone đang bị nghiêng quá mức trên mặt đất, không thể Arm!";
+        char buf[100];
+        snprintf(buf, sizeof(buf), "Drone nghiêng quá mức! Roll=%.1f° Pitch=%.1f° (Max ±30°)", attitude.roll, attitude.pitch);
+        reason = buf;
         return false;
     }
 
